@@ -65,7 +65,7 @@ class MessengerScraper:
     def _find_container(self):
         self.container = self.driver.execute_script(FIND_CONTAINER)
         if self.container is None:
-            raise NoChatContainerFound("Brak panelu wiadomości. Otwórz i odblokuj rozmowę.")
+            raise NoChatContainerFound("No message panel found. Open and unlock the conversation.")
 
     def _scan(self, direction: int, move: bool):
         if self.container is None:
@@ -84,7 +84,7 @@ class MessengerScraper:
                 self._find_container()
             else:
                 if result.get("navigationChanged"):
-                    raise ConversationChanged("Karta została przełączona na inną rozmowę.")
+                    raise ConversationChanged("The tab switched to a different conversation.")
                 return result
 
     def _capture_debug(self, result: dict):
@@ -125,7 +125,7 @@ class MessengerScraper:
                 stable = 0
             previous_edge = edge if state["atEdge"] else None
             if round_number == 1 or round_number % 25 == 0 or stable == stable_rounds:
-                print(f"Runda {round_number} ({label}) | +{added}, razem {len(self.history)}")
+                print(f"Round {round_number} ({label}) | +{added}, {len(self.history)} total")
             if stable >= stable_rounds:
                 self.directions[label] = "edge_stable"
                 return

@@ -10,7 +10,7 @@ from src.history import MessageHistory
 from src.scraper import FIND_CONTAINER, MessengerScraper, SCAN_AND_SCROLL
 
 
-def message(identifier, text="powtórzenie", **extra):
+def message(identifier, text="repeat", **extra):
     return clean_record({"source_message_id": identifier, "text": text, "structured": True, **extra})
 
 
@@ -50,10 +50,10 @@ class ExportTests(unittest.TestCase):
     def test_round_trip_preserves_native_ids_and_resolves_only_unambiguous_replies(self):
         items = [
             message("a", "<script>test</script>"),
-            message("b", "powtórzenie"),
-            message("c", "powtórzenie"),
-            message("d", "tekst", reply_to={"source_message_id": "c", "text": "powtórzenie"}),
-            message("e", "tekst", reply_to={"text": "powtórzenie"}),
+            message("b", "repeat"),
+            message("c", "repeat"),
+            message("d", "text", reply_to={"source_message_id": "c", "text": "repeat"}),
+            message("e", "text", reply_to={"text": "repeat"}),
             message("f", "", message_type="video", attachments=[{"kind": "video", "url": "blob:source"}]),
         ]
         url = "https://www.facebook.com/messages/t/example"

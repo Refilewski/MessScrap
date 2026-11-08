@@ -25,30 +25,45 @@ def compile_content() -> str:
     return "(() => {\n'use strict';\n" + "\n\n".join(scripts) + "\n})();\n"
 
 
-def build(output: Path) -> tuple[Path, Path]:
+def build(output: Path, target: str = "all") -> tuple[Path, ...]:
     files = {
         name: read(SOURCE / name) + "\n"
-        for name in ("manifest.json", "thread.js", "popup.html", "popup.js")
+        for name in ("thread.js", "popup.html", "popup.js")
     }
     files["content.js"] = compile_content()
-    version = json.loads(files["manifest.json"])["version"]
-    directory = output / "firefox-extension"
-    directory.mkdir(parents=True, exist_ok=True)
-    for name, contents in files.items():
-        (directory / name).write_text(contents, encoding="utf-8", newline="\n")
+    firefox_manifest = json.loads(read(SOURCE / "manifest.json"))
+    chromium_manifest = {
+        key: value for key, value in firefox_manifest.items()
+        if key != "browser_specific_settings"
+    }
+    manifests = {"firefox": firefox_manifest, "chromium": chromium_manifest}
+    browsers = manifests if target == "all" else (target,)
+    artifacts = []
+    for browser in browsers:
+        manifest = manifests[browser]
+        package_files = {
+            **files,
+            "manifest.json": json.dumps(manifest, indent=2) + "\n",
+        }
+        directory = output / f"{browser}-extension"
+        directory.mkdir(parents=True, exist_ok=True)
+        for name, contents in package_files.items():
+            (directory / name).write_text(contents, encoding="utf-8", newline="\n")
 
-    archive = output / f"messscrap-firefox-{version}.zip"
-    with ZipFile(archive, "w", compression=ZIP_DEFLATED) as package:
-        for name, contents in files.items():
-            package.writestr(name, contents.encode("utf-8"))
-    return directory, archive
+        archive = output / f"messscrap-{browser}-{manifest['version']}.zip"
+        with ZipFile(archive, "w", compression=ZIP_DEFLATED) as package:
+            for name, contents in package_files.items():
+                package.writestr(name, contents.encode("utf-8"))
+        artifacts.extend((directory, archive))
+    return tuple(artifacts)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Zbuduj rozszerzenie MessScrap do Firefoksa.")
+    parser = argparse.ArgumentParser(description="Build MessScrap for Chrome, Brave and Firefox.")
     parser.add_argument("--output", type=Path, default=ROOT / "bin")
+    parser.add_argument("--target", choices=("all", "chromium", "firefox"), default="all")
     options = parser.parse_args()
-    for artifact in build(options.output):
+    for artifact in build(options.output, options.target):
         print(artifact.resolve())
 
 

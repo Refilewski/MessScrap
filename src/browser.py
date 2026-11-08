@@ -55,9 +55,9 @@ def start_browser() -> Path | None:
                 continue
             profile_base = os.environ.get("LOCALAPPDATA")
             if not profile_base:
-                raise ChromeAttachError("Brak katalogu LOCALAPPDATA dla profilu przeglądarki.")
+                raise ChromeAttachError("LOCALAPPDATA is unavailable for the browser profile.")
             profile = Path(profile_base) / f"MessengerExport{name}"
-            print(f"Uruchamiam {name} z osobnym profilem.")
+            print(f"Starting {name} with a separate profile.")
             subprocess.Popen([
                 str(executable),
                 "--remote-debugging-port=9222",
@@ -92,7 +92,7 @@ def attach_to_browser():
         try:
             executable = start_browser()
         except OSError as exc:
-            raise ChromeAttachError(f"Nie udało się uruchomić przeglądarki: {exc}") from exc
+            raise ChromeAttachError(f"Could not start the browser: {exc}") from exc
         if executable:
             for _ in range(30):
                 version = debugger_version()
@@ -100,7 +100,7 @@ def attach_to_browser():
                     break
                 time.sleep(0.5)
     if not version:
-        raise ChromeAttachError("Port 9222 jest niedostępny. Uruchom przeglądarkę zgodnie z README.")
+        raise ChromeAttachError("Port 9222 is unavailable. Start the browser using the README instructions.")
 
     options = webdriver.ChromeOptions()
     options.debugger_address = DEBUGGER_ADDRESS
@@ -116,7 +116,7 @@ def attach_to_browser():
         return webdriver.Chrome(options=options, service=service)
     except WebDriverException as exc:
         detail = str(exc).splitlines()[0]
-        raise ChromeAttachError(f"Nie udało się połączyć z przeglądarką na porcie 9222. {detail}") from exc
+        raise ChromeAttachError(f"Could not connect to the browser on port 9222. {detail}") from exc
 
 
 def select_conversation(driver) -> str:
@@ -138,8 +138,8 @@ def select_conversation(driver) -> str:
     elif len(candidates) == 1:
         handle, url, _ = candidates[0]
     elif candidates:
-        raise ChromeAttachError("Wybór rozmowy jest niejednoznaczny. Zostaw jedną otwartą rozmowę w tym profilu.")
+        raise ChromeAttachError("More than one conversation matches. Leave one open in this profile.")
     else:
-        raise ChromeAttachError("Otwórz konkretną rozmowę w oknie uruchomionym do eksportu.")
+        raise ChromeAttachError("Open a specific conversation in the export browser window.")
     driver.switch_to.window(handle)
     return url

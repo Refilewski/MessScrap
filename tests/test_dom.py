@@ -5,11 +5,37 @@ from pathlib import Path
 from unittest.mock import patch
 
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
 
+from extension.build import build
 from src import browser
 from src.media import MediaDownloader
 from src.scraper import MessengerScraper
+
+
+@unittest.skipUnless(os.environ.get("MESSSCRAP_CHROMIUM") and os.environ.get("MESSSCRAP_CHROMEDRIVER"), "requires local Chromium and ChromeDriver")
+class ChromiumExtensionTests(unittest.TestCase):
+    def test_install_package_and_open_popup(self):
+        options = webdriver.ChromeOptions()
+        if not hasattr(options, "enable_webextensions"):
+            self.skipTest("requires Selenium WebExtension support")
+        options.binary_location = os.environ["MESSSCRAP_CHROMIUM"]
+        options.enable_webextensions = True
+        options.web_socket_url = True
+        for flag in ("--headless=new", "--disable-background-networking", "--disable-gpu", "--no-first-run"):
+            options.add_argument(flag)
+        with tempfile.TemporaryDirectory() as temp:
+            directory, _ = build(Path(temp), "chromium")
+            with webdriver.Chrome(options=options, service=Service(os.environ["MESSSCRAP_CHROMEDRIVER"])) as driver:
+                installed = driver.webextension.install(path=str(directory))
+                driver.get(f"chrome-extension://{installed['extension']}/popup.html")
+                self.assertEqual(driver.title, "MessScrap")
+                driver.find_element(By.ID, "open").click()
+                WebDriverWait(driver, 5).until(
+                    lambda page: "Open a specific conversation" in page.find_element(By.ID, "status").text
+                )
 
 
 @unittest.skipUnless(os.environ.get("MESSSCRAP_CHROMIUM") and os.environ.get("MESSSCRAP_CHROMEDRIVER"), "requires local Chromium and ChromeDriver")

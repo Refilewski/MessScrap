@@ -34,13 +34,13 @@ sheet.replaceSync(`
 `);
 root.adoptedStyleSheets = [sheet];
 root.innerHTML = `
-  <section aria-label="Eksport rozmowy Messengera">
-    <header><strong>MessScrap</strong><button type="button" id="close" aria-label="Zamknij panel">×</button></header>
-    <p id="status" role="status">Zbierz wiadomości z otwartej rozmowy i zapisz plik JSON.</p>
+  <section aria-label="Messenger conversation export">
+    <header><strong>MessScrap</strong><button type="button" id="close" aria-label="Close panel">×</button></header>
+    <p id="status" role="status">Collect messages from the open conversation and save a JSON file.</p>
     <footer>
-      <button type="button" class="primary" id="start">Zbierz historię</button>
-      <button type="button" id="stop" hidden>Zatrzymaj</button>
-      <button type="button" id="save" hidden>Zapisz JSON</button>
+      <button type="button" class="primary" id="start">Collect history</button>
+      <button type="button" id="stop" hidden>Stop</button>
+      <button type="button" id="save" hidden>Save JSON</button>
     </footer>
   </section>
 `;
@@ -66,14 +66,14 @@ start.addEventListener('click', async () => {
   save.hidden = true;
   stop.hidden = false;
   const result = await collectChat(sourceUrl, (count, phase) => {
-    const label = phase === 'older' ? 'Starsza historia' : 'Nowsza historia';
-    const progress = label + ' · zebrano ' + count + ' wiadomości';
+    const label = phase === 'older' ? 'Older history' : 'Newer history';
+    const progress = label + ' · collected ' + count + ' messages';
     if (status.textContent !== progress) status.textContent = progress;
   }, controller.signal);
   payload = result.payload;
   status.textContent = [
     result.error,
-    'Zebrano ' + payload.count + ' wiadomości.' + (payload.partial ? ' Eksport częściowy.' : ''),
+    'Collected ' + payload.count + ' messages.' + (payload.partial ? ' Partial export.' : ''),
   ].filter(Boolean).join(' ');
   close.disabled = start.disabled = false;
   stop.hidden = true;

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MessScrap",
-  "version": "0.1.0",
-  "description": "Zapisuje otwartą rozmowę Messengera do lokalnego pliku JSON.",
+  "version": "0.2.0",
+  "description": "Facebook Messenger Chat Exporter",
   "permissions": ["activeTab", "scripting"],
   "action": {
     "default_title": "MessScrap",

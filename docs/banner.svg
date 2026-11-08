@@ -23,7 +23,7 @@
     <rect x="52" y="45" width="42" height="42" rx="12" fill="url(#accent)"/>
     <path d="M63 56h20a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H71l-6 5v-5h-2a3 3 0 0 1-3-3V59a3 3 0 0 1 3-3Z" fill="none" stroke="#201646" stroke-width="2"/>
     <path d="M67 65h12" stroke="#201646" stroke-width="2" stroke-linecap="round"/>
-    <text x="107" y="72" fill="#c9c0ff" font-size="13" font-weight="700" letter-spacing="2.7">LOCAL MESSENGER EXPORTER</text>
+    <text x="107" y="72" fill="#c9c0ff" font-size="13" font-weight="700" letter-spacing="2.7">FACEBOOK MESSENGER CHAT EXPORTER</text>
     <text x="48" y="158" fill="#f6f5ff" font-size="70" font-weight="750" letter-spacing="-4">MessScrap</text>
     <text x="53" y="200" fill="#c4c9e2" font-size="21">Save your chats on Windows and Android.</text>
     <text x="53" y="248" fill="#aa9dff" font-size="14" font-weight="700" letter-spacing="1.1">PYTHON CLI</text>

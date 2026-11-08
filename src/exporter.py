@@ -119,25 +119,25 @@ def details(item: dict) -> list[tuple[str, str]]:
     if any(reply.values()):
         target = f"#{reply['target_index']}" if reply["target_index"] else reply["author"] or reply["label"]
         quote = reply["text"] or ""
-        lines.append(("Odpowiedź", " · ".join(part for part in (target, quote) if part)))
+        lines.append(("Reply", " · ".join(part for part in (target, quote) if part)))
     for entry in item["attachments"]:
         label = entry.get("label") or entry.get("filename") or entry["kind"]
         source = entry.get("local_path") or entry.get("url")
         parts = [label, source]
         if entry.get("download_error"):
             parts.append(entry["download_error"])
-        lines.append(("Załącznik", " · ".join(part for part in parts if part)))
+        lines.append(("Attachment", " · ".join(part for part in parts if part)))
     for entry in item["links"]:
         lines.append(("Link", entry["url"]))
     for entry in item["reactions"]:
-        lines.append(("Reakcja", entry["label"]))
+        lines.append(("Reaction", entry["label"]))
     for entry in item["receipts"]:
         lines.append(("Status", entry))
     return lines
 
 
 def message_heading(item: dict) -> str:
-    author = item["author"] or ("Ty" if item["direction"] == "me" else "Nieznany nadawca")
+    author = item["author"] or ("You" if item["direction"] == "me" else "Unknown sender")
     moment = item["timestamp"] or item["datetime_raw"] or " ".join(
         value for value in (item["date"], item["time"]) if value
     )
@@ -148,9 +148,9 @@ def message_heading(item: dict) -> str:
 def write_txt(path: Path, payload: dict) -> None:
     with atomic_output(path) as file:
         file.write(
-            f"Messenger | {payload['count']} wiadomości\n"
-            f"{payload['source_url']}\nZapisano {payload['exported_at']}\n"
-            f"Zakres: {payload['coverage']} | Częściowy: {payload['partial']}\n"
+            f"Messenger | {payload['count']} messages\n"
+            f"{payload['source_url']}\nSaved {payload['exported_at']}\n"
+            f"Coverage: {payload['coverage']} | Partial: {payload['partial']}\n"
         )
         for item in payload["items"]:
             file.write(f"\n{message_heading(item)}\n{item['text']}\n")
@@ -159,10 +159,10 @@ def write_txt(path: Path, payload: dict) -> None:
 
 
 HTML_HEAD = """<!doctype html>
-<html lang="pl"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<title>Eksport Messengera</title>
+<title>Messenger Chat Export</title>
 <style>
 :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
 body { margin: auto; max-width: 56rem; padding: 1rem; }
@@ -178,10 +178,10 @@ ul { margin-bottom: 0; }
 def write_html(path: Path, payload: dict) -> None:
     with atomic_output(path) as file:
         file.write(HTML_HEAD)
-        file.write(f"<h1>Messenger · {payload['count']} wiadomości</h1>\n")
+        file.write(f"<h1>Messenger · {payload['count']} messages</h1>\n")
         file.write(f"<p>{escape(payload['source_url'])}\n{escape(payload['exported_at'])}</p>\n")
         if payload["partial"]:
-            file.write("<p><strong>Eksport częściowy.</strong></p>\n")
+            file.write("<p><strong>Partial export.</strong></p>\n")
         for item in payload["items"]:
             direction = item["direction"] if item["direction"] in {"me", "other"} else "unknown"
             file.write(f'<article class="{direction}" id="m{item["index"]}">\n')
@@ -196,11 +196,11 @@ def write_html(path: Path, payload: dict) -> None:
                 file.write("</ul>\n")
             target = item["reply_to"]["target_index"]
             if isinstance(target, int) and target > 0:
-                file.write(f'<a href="#m{target}">Przejdź do wiadomości #{target}</a>\n')
+                file.write(f'<a href="#m{target}">Go to message #{target}</a>\n')
             for attachment in item["attachments"]:
                 local = attachment.get("local_path") or attachment.get("preview_local_path")
                 if local and re.fullmatch(r"media/[0-9a-f]{64}\.[a-z0-9]+", local):
-                    file.write(f'<div><a href="{local}" download>Zapisany plik</a></div>\n')
+                    file.write(f'<div><a href="{local}" download>Saved file</a></div>\n')
             file.write("</article>\n")
         file.write("</body></html>\n")
 

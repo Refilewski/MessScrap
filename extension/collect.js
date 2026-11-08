@@ -127,11 +127,11 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
       coverage[phase] = 'in_progress';
       for (let round = 1; round <= limit; round++) {
         if (signal.aborted) break;
-        if (threadUrl(location.href) !== sourceUrl) throw new Error('Rozmowa została przełączona.');
+        if (threadUrl(location.href) !== sourceUrl) throw new Error('The tab switched to a different conversation.');
         if (!root?.isConnected) root = findContainer();
         const result = root ? readMessages(root, false, false, false, 0) : null;
         if (!result?.records.length && history.entries.size === 0) {
-          throw new Error('Nie wykryto wiadomości. Odblokuj rozmowę lub włącz widok komputerowy i spróbuj ponownie.');
+          throw new Error('No messages detected. Unlock the conversation or try Desktop site.');
         }
 
         const added = history.addWindow(result?.records || [], direction);
@@ -152,7 +152,7 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
       if (signal.aborted) coverage[phase] = 'interrupted';
     }
   } catch (failure) {
-    error = failure.message || 'Błąd odczytu rozmowy.';
+    error = failure.message || 'Could not read the conversation.';
   }
 
   return {payload: makePayload(history, sourceUrl, coverage, signal.aborted), error};
