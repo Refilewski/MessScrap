@@ -1,0 +1,17 @@
+# Local environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated packages and private conversation data
+/bin/
+/exports/
+/examplepagesrc/
+/streszczenie_rozmow*.txt
+.env
+.env.*

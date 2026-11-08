@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="296" viewBox="0 0 1120 296" role="img" aria-labelledby="title desc">
+  <title id="title">MessScrap</title>
+  <desc id="desc">Messenger export utility for Windows and Firefox, illustrated with an example conversation.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#0e1220"/>
+      <stop offset="1" stop-color="#22204a"/>
+    </linearGradient>
+    <linearGradient id="accent" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#aa9dff"/>
+      <stop offset="1" stop-color="#7766f5"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#fff" stroke-opacity=".06"/>
+    </pattern>
+    <clipPath id="bounds"><rect width="1120" height="296" rx="24"/></clipPath>
+  </defs>
+  <g clip-path="url(#bounds)" font-family="Segoe UI, system-ui, sans-serif">
+    <rect width="1120" height="296" fill="url(#background)"/>
+    <rect x="572" width="548" height="296" fill="url(#grid)"/>
+    <circle cx="1082" cy="-24" r="198" fill="#9885ff" opacity=".085"/>
+    <path d="M603 296 704 0" stroke="#b0a8ff" stroke-opacity=".16"/>
+    <rect x="52" y="45" width="42" height="42" rx="12" fill="url(#accent)"/>
+    <path d="M63 56h20a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H71l-6 5v-5h-2a3 3 0 0 1-3-3V59a3 3 0 0 1 3-3Z" fill="none" stroke="#201646" stroke-width="2"/>
+    <path d="M67 65h12" stroke="#201646" stroke-width="2" stroke-linecap="round"/>
+    <text x="107" y="72" fill="#c9c0ff" font-size="13" font-weight="700" letter-spacing="2.7">LOCAL MESSENGER EXPORTER</text>
+    <text x="48" y="158" fill="#f6f5ff" font-size="70" font-weight="750" letter-spacing="-4">MessScrap</text>
+    <text x="53" y="200" fill="#c4c9e2" font-size="21">Save your chats on Windows and Android.</text>
+    <text x="53" y="248" fill="#aa9dff" font-size="14" font-weight="700" letter-spacing="1.1">PYTHON CLI</text>
+    <circle cx="175" cy="243" r="2.5" fill="#706e9a"/>
+    <text x="190" y="248" fill="#aa9dff" font-size="14" font-weight="700" letter-spacing="1.1">FIREFOX EXTENSION</text>
+
+    <rect x="641" y="34" width="425" height="229" rx="19" fill="#14182c" stroke="#55547b"/>
+    <path d="M641 84h425" stroke="#393c59"/>
+    <circle cx="670" cy="59" r="6" fill="#a699ff"/>
+    <text x="685" y="64" fill="#e4e1f7" font-size="13" font-weight="700" letter-spacing="1.4">EXAMPLE CHAT</text>
+    <rect x="665" y="104" width="257" height="38" rx="13" fill="#2c304c"/>
+    <text x="679" y="128" fill="#eff0ff" font-size="16">Saturday at ten still works?</text>
+    <rect x="808" y="153" width="233" height="38" rx="13" fill="url(#accent)"/>
+    <text x="824" y="177" fill="#17122e" font-size="16" font-weight="650">Yep, see you then.</text>
+    <path d="M666 211h375" stroke="#393c59"/>
+    <text x="666" y="242" fill="#b8bfd9" font-size="14">Export formats</text>
+    <g font-size="13" font-weight="700" fill="#d1caff" text-anchor="middle">
+      <rect x="825" y="222" width="59" height="27" rx="7" fill="#2c2850"/>
+      <text x="854.5" y="240">JSON</text>
+      <rect x="891" y="222" width="59" height="27" rx="7" fill="#2c2850"/>
+      <text x="920.5" y="240">TXT</text>
+      <rect x="957" y="222" width="84" height="27" rx="7" fill="#2c2850"/>
+      <text x="999" y="240">HTML</text>
+    </g>
+  </g>
+</svg>
