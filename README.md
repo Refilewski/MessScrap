@@ -87,7 +87,12 @@ For installation beyond a Firefox restart, submit the Firefox ZIP for Mozilla's 
 
 ## Windows CLI
 
-From the repository root, create a virtual environment and run MessScrap.
+**Prebuilt downloads:** [GitHub Releases](https://github.com/Refilewski/MessScrap/releases/tag/v0.2.0) includes two Windows CLI options:
+
+- **`messscrap-windows-0.2.0.zip`** — a portable `MessScrap.exe` compiled with PyInstaller. Extract the ZIP to a writable folder and run `MessScrap.exe` (no separate Python installation required). Keep Chrome or Brave installed; Selenium Manager may download a compatible ChromeDriver when first needed. Conversation exports are saved under `exports/` next to the EXE. The executable is unsigned.
+- **`messscrap-python-0.2.0.zip`** — the CLI's Python source (`main.py`, `src/` including JavaScript resources, and `requirements.txt`). Extract the ZIP and follow the Python setup below; Python 3.10+ is required.
+
+**Run from Python source (cloned repository or source ZIP):** Create a virtual environment and run MessScrap.
 
 ```powershell
 python -m venv .venv
