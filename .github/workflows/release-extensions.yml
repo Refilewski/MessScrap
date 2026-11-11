@@ -1,0 +1,59 @@
+name: Publish MessScrap browser extension ZIPs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-extensions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Chromium and Firefox extensions
+        run: python extension/build.py
+
+      - name: Validate ZIP files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          packages = sorted(Path('bin').glob('messscrap-*.zip'))
+          assert len(packages) == 2, packages
+          for path in packages:
+              with ZipFile(path) as archive:
+                  assert archive.testzip() is None, path
+                  assert {'manifest.json', 'content.js', 'popup.js'}.issubset(set(archive.namelist()))
+              print(f'Validated {path}')
+          PY
+
+      - name: Publish release v0.2.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v0.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Release v0.2.0 already exists. Not overwriting published artifacts."
+            exit 0
+          fi
+          gh release create v0.2.0 \
+            "bin/messscrap-chromium-0.2.0.zip#Chrome / Brave / Orion on iOS" \
+            "bin/messscrap-firefox-0.2.0.zip#Firefox (unsigned)" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "MessScrap v0.2.0" \
+            --notes "Prebuilt browser extension packages. Install the Chromium ZIP in Chrome, Brave or Orion Browser on iOS. Firefox ZIP requires Mozilla signing for permanent installation. See the README for platform-specific installation instructions."
