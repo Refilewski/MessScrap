@@ -1,0 +1,72 @@
+name: Publish MessScrap Windows and Python CLI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-python-cli.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-cli:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python and bundler dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Build portable Windows executable
+        run: python -m PyInstaller --onefile --clean --noconfirm --console --name MessScrap --collect-all selenium --add-data "src/dom;src/dom" main.py
+
+      - name: Verify bundled CLI starts
+        run: |
+          & .\dist\MessScrap.exe --help
+          if ($LASTEXITCODE -ne 0) { throw "Executable smoke test failed" }
+
+      - name: Package Windows EXE and Python source
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          root = Path('.')
+          output = root / 'bin'
+          output.mkdir(exist_ok=True)
+          with ZipFile(output / 'messscrap-windows-0.2.0.zip', 'w', ZIP_DEFLATED) as archive:
+              archive.write(root / 'dist/MessScrap.exe', 'MessScrap.exe')
+          with ZipFile(output / 'messscrap-python-0.2.0.zip', 'w', ZIP_DEFLATED) as archive:
+              archive.write(root / 'main.py', 'main.py')
+              archive.write(root / 'requirements.txt', 'requirements.txt')
+              archive.write(root / 'README.md', 'README.md')
+              for path in sorted((root / 'src').rglob('*')):
+                  if path.is_file() and path.suffix in {'.py', '.js'}:
+                      archive.write(path, path.as_posix())
+          for path in output.glob('messscrap-*.zip'):
+              with ZipFile(path) as archive:
+                  assert archive.testzip() is None, path
+              print(f'Validated: {path} ({path.stat().st_size:,} bytes)')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Packaging failed" }
+
+      - name: Upload assets to existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v0.2.0 bin/messscrap-windows-0.2.0.zip bin/messscrap-python-0.2.0.zip --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "Release upload failed" }
