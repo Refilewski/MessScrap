@@ -7,6 +7,8 @@
 
 <p align="center">
   <a href="#browser-extensions">Browser extensions</a> ·
+  <a href="#ios-orion-browser">iOS</a> ·
+  <a href="https://github.com/Refilewski/MessScrap/releases">Releases</a> ·
   <a href="#windows-cli">Windows CLI</a> ·
   <a href="#what-gets-exported">Export formats</a>
 </p>
@@ -15,12 +17,14 @@ MessScrap saves a conversation you open in Messenger. It scrolls in both directi
 
 | Version | Where it runs | Output |
 | --- | --- | --- |
-| Browser extension | Chrome and Brave on desktop, Firefox on desktop and Android | JSON |
+| Browser extension | Chrome and Brave on desktop, Firefox on desktop and Android, **Orion Browser on iOS** | JSON |
 | Python CLI | Windows with Chrome or Brave | JSON, TXT and offline HTML, with optional attachment downloads |
 
 ## Browser extensions
 
-Clone the repository and build the extensions with Python 3.10 or newer. The build does not require Selenium.
+**Prebuilt ZIPs:** Download the latest packaged browser extensions from [GitHub Releases](https://github.com/Refilewski/MessScrap/releases). Use the Chromium ZIP for Chrome, Brave and **Orion on iOS**, or the Firefox ZIP for Firefox. The Firefox ZIP is not Mozilla-signed; installation rules still apply.
+
+**Build from source (optional):** Clone the repository and build the extensions with Python 3.10 or newer. The build does not require Selenium.
 
 ```powershell
 git clone https://github.com/Refilewski/MessScrap.git
@@ -38,6 +42,32 @@ The builder creates `bin/chromium-extension/` for Chrome and Brave and `bin/fire
 4. Select **MessScrap → Open panel → Collect history → Save JSON**.
 
 [Chrome installation guide](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked) · [Brave extension help](https://support.brave.app/hc/en-us/articles/360017909112-How-can-I-add-extensions-to-Brave)
+
+### iOS (Orion Browser)
+
+**Supported on iPhone via [Orion Browser](https://browser.kagi.com/orion/).** This method has been tested on an iPhone. Safari and Chrome for iOS are not supported directly. Termux is **only an optional way to build the extension on an Android device**; it does not run on iOS and is not needed if you download the prebuilt ZIP.
+
+1. Download `messscrap-chromium-0.2.0.zip` from [GitHub Releases](https://github.com/Refilewski/MessScrap/releases) and save it to **Files** on your iPhone.
+2. Install **Orion Browser** on the iPhone and enable support for Chrome extensions in its settings.
+3. In Orion, open **Extensions → + → Install from File** (menu labels may vary) and select the downloaded ZIP.
+4. Visit `https://www.facebook.com/messages/`, sign in and open a specific conversation. If necessary, request the desktop version of the website and unlock the conversation.
+5. Choose **MessScrap → Open panel → Collect history → Save JSON** to export messages to your iPhone.
+
+**Optional: Build the iOS-compatible ZIP on Android using Termux** (instead of downloading it from Releases):
+
+```sh
+pkg update
+pkg install git python
+git clone https://github.com/Refilewski/MessScrap.git
+cd MessScrap
+python extension/build.py --target chromium
+termux-setup-storage
+cp bin/messscrap-chromium-0.2.0.zip ~/storage/downloads/
+```
+
+Allow Termux access to storage when prompted. Transfer the ZIP from Android Downloads to the iPhone (for example via LocalSend or cloud storage) and continue from step 2 above.
+
+**Note:** Orion extension compatibility can vary by iOS/Orion version; the tested setup is not a guarantee for every device. The JSON contains private chat history, so store it carefully.
 
 ### Firefox on desktop and Android
 
