@@ -67,11 +67,44 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(payload["items"][3]["reply_to"]["target_message_id"], "local-3")
             self.assertIsNone(payload["items"][4]["reply_to"]["target_index"])
             self.assertEqual(payload["items"][5]["attachments"][0]["url"], "blob:source")
-            self.assertIn("blob:source", txt.read_text(encoding="utf-8"))
+            self.assertNotIn("blob:source", txt.read_text(encoding="utf-8"))
+            self.assertIn("[video]", txt.read_text(encoding="utf-8"))
             rendered = html.read_text(encoding="utf-8")
             self.assertIn("&lt;script&gt;", rendered)
             self.assertNotIn("<script>", rendered)
             self.assertIn('href="#m3"', rendered)
+
+    def test_txt_groups_messages_and_hides_ids_and_urls(self):
+        items = [
+            message("id-123", "First https://example.com/private", author="Ada", date="Monday", time="10:00am"),
+            message("id-124", "Second\nline\nmore", author="Ada", date="Monday", time="10:00am"),
+            message("id-125", "Thanks", author="Bob", date="Monday", time="10:01am",
+                    reply_to={"source_message_id": "id-123"},
+                    reactions=[{"label": "1 reaction with ❤️; see who reacted to this"}]),
+            message("id-126", "", message_type="sticker", date="Tuesday", time="10:00am",
+                    attachments=[{"kind": "sticker", "url": "blob:private"}]),
+            message("id-127", "Go to www.example.org now", date="Tuesday", time="10:01am"),
+        ]
+        url = "https://www.facebook.com/messages/e2ee/t/987654321"
+        with tempfile.TemporaryDirectory() as temp:
+            run = create_export_run(url, export_dir=Path(temp))
+            txt, data, _ = export_items(items, url, run, partial=True)
+            rendered = txt.read_text(encoding="utf-8")
+            self.assertIn("── Monday ──", rendered)
+            self.assertIn("── Tuesday ──", rendered)
+            self.assertEqual(rendered.count("Ada · 10:00am"), 1)
+            self.assertIn("  • First [link]", rendered)
+            self.assertIn("  • Second\n    line\n    more", rendered)
+            self.assertIn("↳ Ada: First [link]", rendered)
+            self.assertIn("Reaction: 1 reaction with ❤️", rendered)
+            self.assertNotIn("see who reacted", rendered)
+            self.assertIn("  • [sticker]", rendered)
+            self.assertIn("Go to [link] now", rendered)
+            self.assertIn("Partial export", rendered)
+            for secret in ("id-123", "local-", "blob:private", "example.com", "example.org",
+                           "987654321", "source_message_id", "Coverage:"):
+                self.assertNotIn(secret, rendered)
+            self.assertIn("https://example.com/private", data.read_text(encoding="utf-8"))
 
     def test_selects_only_specific_threads_on_messenger_hosts(self):
         self.assertEqual(
