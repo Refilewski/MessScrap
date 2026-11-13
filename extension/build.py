@@ -21,7 +21,7 @@ def compile_content() -> str:
     scripts = [read(SOURCE / "thread.js")]
     for function, filename in wrappers:
         scripts.append(f"function {function} {{\n{read(DOM / filename)}\n}}")
-    scripts.extend(read(SOURCE / filename) for filename in ("collect.js", "panel.js"))
+    scripts.extend(read(SOURCE / filename) for filename in ("collect.js", "txt.js", "panel.js"))
     return "(() => {\n'use strict';\n" + "\n\n".join(scripts) + "\n})();\n"
 
 
