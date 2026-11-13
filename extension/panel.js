@@ -36,11 +36,12 @@ root.adoptedStyleSheets = [sheet];
 root.innerHTML = `
   <section aria-label="Messenger conversation export">
     <header><strong>MessScrap</strong><button type="button" id="close" aria-label="Close panel">×</button></header>
-    <p id="status" role="status">Collect messages from the open conversation and save a JSON file.</p>
+    <p id="status" role="status">Collect messages from the open conversation and save as JSON or TXT.</p>
     <footer>
       <button type="button" class="primary" id="start">Collect history</button>
       <button type="button" id="stop" hidden>Stop</button>
       <button type="button" id="save" hidden>Save JSON</button>
+      <button type="button" id="saveTxt" hidden>Save TXT</button>
     </footer>
   </section>
 `;
@@ -49,6 +50,7 @@ const status = root.querySelector('#status');
 const start = root.querySelector('#start');
 const stop = root.querySelector('#stop');
 const save = root.querySelector('#save');
+const saveTxt = root.querySelector('#saveTxt');
 const close = root.querySelector('#close');
 let controller = null;
 let payload = null;
@@ -64,6 +66,7 @@ start.addEventListener('click', async () => {
   close.disabled = start.disabled = true;
   stop.disabled = false;
   save.hidden = true;
+  saveTxt.hidden = true;
   stop.hidden = false;
   const result = await collectChat(sourceUrl, (count, phase) => {
     const label = phase === 'older' ? 'Older history' : 'Newer history';
@@ -78,20 +81,26 @@ start.addEventListener('click', async () => {
   close.disabled = start.disabled = false;
   stop.hidden = true;
   save.hidden = !payload.count;
+  saveTxt.hidden = !payload.count;
 });
 
-save.addEventListener('click', () => {
+function downloadExport(format) {
   if (!payload?.count) return;
-  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2) + '\n'], {type: 'application/json'}));
+  const content = format === 'txt' ? formatTxt(payload) : JSON.stringify(payload, null, 2) + '\n';
+  const mime = format === 'txt' ? 'text/plain;charset=utf-8' : 'application/json';
+  const url = URL.createObjectURL(new Blob([content], {type: mime}));
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'messscrap-' + payload.exported_at.replace(/[:.]/g, '-') + '.json';
+  link.download = 'messscrap-' + payload.exported_at.replace(/[:.]/g, '-') + '.' + format;
   link.hidden = true;
   root.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-});
+}
+
+save.addEventListener('click', () => downloadExport('json'));
+saveTxt.addEventListener('click', () => downloadExport('txt'));
 
 document.documentElement.append(host);
 return true;
