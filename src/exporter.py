@@ -145,18 +145,91 @@ def message_heading(item: dict) -> str:
     return " · ".join(value for value in parts if value)
 
 
-def write_txt(path: Path, payload: dict) -> None:
-    with atomic_output(path) as file:
-        file.write(
-            f"Messenger | {payload['count']} messages\n"
-            f"{payload['source_url']}\nSaved {payload['exported_at']}\n"
-            f"Coverage: {payload['coverage']} | Partial: {payload['partial']}\n"
-        )
-        for item in payload["items"]:
-            file.write(f"\n{message_heading(item)}\n{item['text']}\n")
-            for label, value in details(item):
-                file.write(f"{label}: {value}\n")
+TXT_URL_PATTERN = re.compile(r"(?i)(?:\b(?:https?://|ftp://|www\.)|\bblob:)[^\s<>\[\]\"']+")
 
+
+def txt_text(value: object) -> str:
+    """Keep conversation text, but hide URLs in this human-readable view."""
+    return TXT_URL_PATTERN.sub("[link]", str(value or "").replace("\r\n", "\n").replace("\r", "\n")).strip()
+
+
+def txt_day(item: dict) -> str:
+    day = item.get("date") or ""
+    if day:
+        return day
+    timestamp = item.get("timestamp") or ""
+    match = re.match(r"^\d{4}-\d{2}-\d{2}", timestamp)
+    return match.group(0) if match else ""
+
+
+def txt_time(item: dict) -> str:
+    if item.get("time"):
+        return item["time"]
+    match = re.match(r"^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})", item.get("timestamp") or "")
+    return match.group(1) if match else ""
+
+
+def txt_attachment(entry: dict) -> str:
+    kind = txt_text(entry.get("kind") or "attachment")
+    label = txt_text(entry.get("filename") or entry.get("label"))
+    return f"{kind}: {label}" if label and label.casefold() != kind.casefold() else kind
+
+
+def write_txt(path: Path, payload: dict) -> None:
+    by_index = {item["index"]: item for item in payload["items"]}
+    previous_day = None
+    previous_group = None
+    with atomic_output(path) as file:
+        file.write(f"Messenger conversation · {payload['count']} messages\n")
+        file.write(f"Exported: {payload['exported_at']}\n")
+        if payload.get("partial"):
+            file.write("Partial export — some history may be missing.\n")
+
+        for item in payload["items"]:
+            day = txt_text(txt_day(item))
+            if day != previous_day:
+                if day:
+                    file.write(f"\n── {day} ──\n")
+                previous_day = day
+                previous_group = None
+            author = txt_text(item.get("author") or ("You" if item.get("direction") == "me" else "Unknown"))
+            moment = txt_text(txt_time(item))
+            group = (day, author, moment)
+            if group != previous_group or not moment:
+                file.write(f"\n{author}{' · ' + moment if moment else ''}\n")
+            previous_group = group
+
+            message = txt_text(item.get("text"))
+            attachments = [txt_attachment(entry) for entry in (item.get("attachments") or [])]
+            links = item.get("links") or []
+            if message:
+                lines = message.split("\n")
+                file.write(f"  • {lines[0]}\n")
+                for continuation in lines[1:]:
+                    file.write(f"    {continuation}\n" if continuation else "\n")
+            else:
+                marker = f"[{attachments.pop(0)}]" if attachments else (
+                    "[link]" if links else f"[{txt_text(item.get('message_type') or 'message')}]"
+                )
+                file.write(f"  • {marker}\n")
+            for attachment in attachments:
+                file.write(f"    [{attachment}]\n")
+
+            reply = item.get("reply_to") or {}
+            target = by_index.get(reply.get("target_index"))
+            reply_author = txt_text(reply.get("author") or (target or {}).get("author"))
+            quote = txt_text(reply.get("text") or (target or {}).get("text"))
+            if reply_author or quote:
+                excerpt = quote.replace("\n", " ")
+                if len(excerpt) > 120:
+                    excerpt = excerpt[:117].rstrip() + "..."
+                file.write(f"    ↳ {reply_author + ': ' if reply_author else ''}{excerpt}\n")
+
+            for reaction in item.get("reactions") or []:
+                label = txt_text(reaction.get("label"))
+                label = re.sub(r";?\s*see who reacted.*$", "", label, flags=re.I).strip()
+                if label:
+                    file.write(f"    Reaction: {label}\n")
 
 HTML_HEAD = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
