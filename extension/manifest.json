@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "MessScrap",
-  "version": "0.2.0",
-  "description": "Facebook Messenger Chat Exporter",
-  "permissions": ["activeTab", "scripting"],
+  "version": "0.2.1",
+  "description": "Facebook Messenger Chat Exporter — JSON and TXT",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
   "action": {
     "default_title": "MessScrap",
     "default_popup": "popup.html"
@@ -13,7 +16,9 @@
       "id": "messscrap@refil.cc",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
-        "required": ["none"]
+        "required": [
+          "none"
+        ]
       }
     },
     "gecko_android": {
