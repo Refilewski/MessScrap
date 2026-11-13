@@ -130,7 +130,7 @@ For Chrome, use its executable and a separate profile directory.
 ## What gets exported
 
 - **JSON** contains ordered messages, local IDs, available Messenger IDs and metadata, and the status of each scan.
-- **TXT** is a searchable transcript with timestamps and message details.
+- **TXT** is a compact, searchable transcript grouped by day, sender and time. It omits technical IDs, message indexes, status noise and URLs (shown as `[link]`). Reply previews, reactions and attachment labels remain readable. Original URLs and full metadata remain in JSON/HTML.
 - **HTML** is an offline conversation view with links to replies and locally saved attachments.
 
 JSON includes `partial`, `interrupted`, and per-direction `coverage`. An `edge_stable` result means Messenger stopped revealing new records at that end during the scan. More history may exist beyond what the browser loaded. Attachment URLs can expire or work only in the original browser session.
