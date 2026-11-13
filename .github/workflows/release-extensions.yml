@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/release-extensions.yml'
+      - 'extension/**'
+      - 'src/dom/**'
+      - 'tests/test_txt_extension.mjs'
   workflow_dispatch:
 
 permissions:
@@ -24,6 +27,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test standalone TXT export
+        run: node tests/test_txt_extension.mjs
+
       - name: Build Chromium and Firefox extensions
         run: python extension/build.py
 
@@ -41,19 +47,20 @@ jobs:
               print(f'Validated {path}')
           PY
 
-      - name: Publish release v0.2.0
+      - name: Publish versioned browser extension ZIPs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if gh release view v0.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "::notice::Release v0.2.0 already exists. Not overwriting published artifacts."
+          VERSION=$(python -c 'import json; print(json.load(open("extension/manifest.json"))["version"])')
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Release v$VERSION already exists. Not overwriting published artifacts."
             exit 0
           fi
-          gh release create v0.2.0 \
-            "bin/messscrap-chromium-0.2.0.zip#Chrome / Brave / Orion on iOS" \
-            "bin/messscrap-firefox-0.2.0.zip#Firefox (unsigned)" \
+          gh release create "v$VERSION" \
+            "bin/messscrap-chromium-$VERSION.zip#Chrome / Brave / Orion on iOS" \
+            "bin/messscrap-firefox-$VERSION.zip#Firefox (unsigned)" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "MessScrap v0.2.0" \
-            --notes "Prebuilt browser extension packages. Install the Chromium ZIP in Chrome, Brave or Orion Browser on iOS. Firefox ZIP requires Mozilla signing for permanent installation. See the README for platform-specific installation instructions."
+            --title "MessScrap v$VERSION" \
+            --notes "Browser extensions now support clean TXT transcripts alongside full JSON exports. Includes sender/time grouping, readable replies and attachment labels, and suppression of technical IDs and URLs in TXT. See README for platform installation."
