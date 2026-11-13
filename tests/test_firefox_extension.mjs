@@ -161,6 +161,21 @@ try {
     await delay(100);
   }
   assert(ready, 'JSON export did not become available.');
+  assert(await evaluate("!document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#saveTxt').hidden"));
+  await evaluate("document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#saveTxt').click(); true");
+  let savedTxt;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    savedTxt = (await readdir(profile)).find(name => /^messscrap-.*\.txt$/.test(name));
+    if (savedTxt) break;
+    await delay(100);
+  }
+  assert(savedTxt, 'No TXT downloaded.');
+  const transcript = await readFile(join(profile, savedTxt), 'utf8');
+  assert.match(transcript, /Messenger conversation · 24 messages/);
+  assert.match(transcript, /  • repeat/);
+  assert(!transcript.includes('id-2'));
+  assert(!transcript.includes('facebook.com/messages'));
+
   await evaluate("document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#save').click(); true");
   let saved;
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -191,7 +206,7 @@ try {
   const partialData = JSON.parse(await readFile(join(profile, partial), 'utf8'));
   assert.equal(partialData.interrupted, true);
   assert(partialData.count > 0 && partialData.count < 24);
-  console.log('Firefox ' + session.capabilities.browserVersion + ': installed extension, exported 24 messages and checked partial JSON.');
+  console.log('Firefox ' + session.capabilities.browserVersion + ': installed extension, exported 24 messages and checked TXT and partial JSON.');
 } finally {
   socket?.close();
   firefox.kill();
