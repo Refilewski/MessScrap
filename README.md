@@ -34,6 +34,17 @@ python extension/build.py
 
 The builder creates `bin/chromium-extension/` for Chrome and Brave and `bin/firefox-extension/` for Firefox, along with a ZIP for each. Use `--target chromium` or `--target firefox` to build one package.
 
+### Collection modes in the extension
+
+After opening the panel in a Messenger conversation:
+
+- **Collect history** scans toward newer messages first, then older messages (the original full-history mode).
+- **Scroll to top** begins at the current scroll position and scans **only toward older messages**. It never scrolls down first.
+- **Stop** interrupts either scan and preserves everything collected so far.
+- **Save JSON** and **Save TXT** download the collected messages independently, including after Stop. TXT is a readable transcript without message IDs or raw URLs.
+
+The upward-only export is marked partial because newer messages beyond the starting position were not scanned. Messenger may stop exposing messages before the true beginning of a conversation.
+
 ### Chrome and Brave on desktop
 
 1. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave.

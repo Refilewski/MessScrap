@@ -114,12 +114,13 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
   const stableRounds = options.stableRounds ?? 10;
   const pause = options.pause ?? (direction => direction < 0 ? 450 : 250);
   const history = new History();
-  const coverage = {newer: 'not_started', older: 'not_started'};
+  const coverage = {newer: 'not_requested', older: 'not_requested'};
+  const directions = options.directions ?? [1, -1];
   let root = null;
   let error = null;
 
   try {
-    for (const direction of [1, -1]) {
+    for (const direction of directions) {
       if (signal.aborted) break;
       const phase = direction > 0 ? 'newer' : 'older';
       let previousEdge = null;

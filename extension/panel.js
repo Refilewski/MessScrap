@@ -36,9 +36,10 @@ root.adoptedStyleSheets = [sheet];
 root.innerHTML = `
   <section aria-label="Messenger conversation export">
     <header><strong>MessScrap</strong><button type="button" id="close" aria-label="Close panel">×</button></header>
-    <p id="status" role="status">Collect messages from the open conversation and save as JSON or TXT.</p>
+    <p id="status" role="status">Collect both directions or scroll only up from the current position. Save as JSON or TXT.</p>
     <footer>
       <button type="button" class="primary" id="start">Collect history</button>
+      <button type="button" id="scrollTop">Scroll to top</button>
       <button type="button" id="stop" hidden>Stop</button>
       <button type="button" id="save" hidden>Save JSON</button>
       <button type="button" id="saveTxt" hidden>Save TXT</button>
@@ -48,6 +49,7 @@ root.innerHTML = `
 
 const status = root.querySelector('#status');
 const start = root.querySelector('#start');
+const scrollToTop = root.querySelector('#scrollTop');
 const stop = root.querySelector('#stop');
 const save = root.querySelector('#save');
 const saveTxt = root.querySelector('#saveTxt');
@@ -59,30 +61,43 @@ close.addEventListener('click', () => host.remove());
 stop.addEventListener('click', () => {
   controller?.abort();
   stop.disabled = true;
+  status.textContent = 'Stopping and preparing the collected messages…';
 });
 
-start.addEventListener('click', async () => {
+async function runCollection(options = {}) {
+  if (controller) return;
   controller = new AbortController();
-  close.disabled = start.disabled = true;
+  const signal = controller.signal;
+  payload = null;
+  close.disabled = start.disabled = scrollToTop.disabled = true;
   stop.disabled = false;
   save.hidden = true;
   saveTxt.hidden = true;
   stop.hidden = false;
-  const result = await collectChat(sourceUrl, (count, phase) => {
-    const label = phase === 'older' ? 'Older history' : 'Newer history';
-    const progress = label + ' · collected ' + count + ' messages';
-    if (status.textContent !== progress) status.textContent = progress;
-  }, controller.signal);
-  payload = result.payload;
-  status.textContent = [
-    result.error,
-    'Collected ' + payload.count + ' messages.' + (payload.partial ? ' Partial export.' : ''),
-  ].filter(Boolean).join(' ');
-  close.disabled = start.disabled = false;
-  stop.hidden = true;
-  save.hidden = !payload.count;
-  saveTxt.hidden = !payload.count;
-});
+  try {
+    const result = await collectChat(sourceUrl, (count, phase) => {
+      const label = phase === 'older' ? 'Older history' : 'Newer history';
+      const progress = label + ' · collected ' + count + ' messages';
+      if (!signal.aborted && status.textContent !== progress) status.textContent = progress;
+    }, signal, options);
+    payload = result.payload;
+    status.textContent = [
+      result.error,
+      'Collected ' + payload.count + ' messages.' + (payload.partial ? ' Partial export.' : ''),
+    ].filter(Boolean).join(' ');
+  } catch (error) {
+    status.textContent = error?.message || 'Could not collect messages.';
+  } finally {
+    controller = null;
+    close.disabled = start.disabled = scrollToTop.disabled = false;
+    stop.hidden = true;
+    save.hidden = !payload?.count;
+    saveTxt.hidden = !payload?.count;
+  }
+}
+
+start.addEventListener('click', () => runCollection());
+scrollToTop.addEventListener('click', () => runCollection({directions: [-1]}));
 
 function downloadExport(format) {
   if (!payload?.count) return;
