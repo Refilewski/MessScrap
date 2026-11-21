@@ -75,8 +75,43 @@ function harness() {
   assert(directions.includes(-1));
 }
 
-assert(panel.includes('Scroll to top'));
-assert(panel.includes("runCollection({directions: [-1]})"));
+// A panel that stays open when Messenger switches chats uses the new thread.
+{
+  const location = {href: sourceUrl};
+  const buttons = new Map();
+  const shadow = {
+    querySelector(selector) {
+      if (!buttons.has(selector)) {
+        buttons.set(selector, {addEventListener(_event, listener) { this.click = listener; }});
+      }
+      return buttons.get(selector);
+    },
+  };
+  const calls = [];
+  runInNewContext(`(() => {${panel}\n})()`, {
+    AbortController,
+    CSSStyleSheet: class { replaceSync() {} },
+    location,
+    threadUrl: value => value,
+    document: {
+      getElementById: () => null,
+      createElement: () => ({attachShadow: () => shadow}),
+      documentElement: {append() {}},
+    },
+    async collectChat(url, _onProgress, _signal, options) {
+      calls.push({url, directions: Array.from(options.directions)});
+      return {payload: {count: 1, partial: true}};
+    },
+  });
+
+  const nextUrl = sourceUrl + '-next';
+  location.href = nextUrl;
+  await buttons.get('#scrollTop').click();
+  assert.deepEqual(calls, [{url: nextUrl, directions: [-1]}]);
+  assert.equal(buttons.get('#save').hidden, false);
+  assert.equal(buttons.get('#saveTxt').hidden, false);
+}
+
 assert(panel.includes("downloadExport('txt')"));
 assert(panel.includes("downloadExport('json')"));
 console.log('Extension upward-only scan, stop, and full-history regression: passed.');

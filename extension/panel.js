@@ -1,5 +1,4 @@
-const sourceUrl = threadUrl(location.href);
-if (!sourceUrl) return false;
+if (!threadUrl(location.href)) return false;
 
 const panelId = 'messscrap-export-panel';
 const existing = document.getElementById(panelId);
@@ -66,6 +65,11 @@ stop.addEventListener('click', () => {
 
 async function runCollection(options = {}) {
   if (controller) return;
+  const sourceUrl = threadUrl(location.href);
+  if (!sourceUrl) {
+    status.textContent = 'Open a specific conversation before collecting messages.';
+    return;
+  }
   controller = new AbortController();
   const signal = controller.signal;
   payload = null;

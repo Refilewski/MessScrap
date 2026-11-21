@@ -7,6 +7,7 @@ on:
       - '.github/workflows/release-extensions.yml'
       - 'extension/**'
       - 'src/dom/**'
+      - 'tests/test_extension_scroll.mjs'
       - 'tests/test_txt_extension.mjs'
   workflow_dispatch:
 
@@ -29,6 +30,9 @@ jobs:
 
       - name: Test standalone TXT export
         run: node tests/test_txt_extension.mjs
+
+      - name: Test browser extension collection
+        run: node tests/test_extension_scroll.mjs
 
       - name: Build Chromium and Firefox extensions
         run: python extension/build.py
@@ -63,4 +67,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "MessScrap v$VERSION" \
-            --notes "Browser extensions now support clean TXT transcripts alongside full JSON exports. Includes sender/time grouping, readable replies and attachment labels, and suppression of technical IDs and URLs in TXT. See README for platform installation."
+            --notes "Scroll to top collects older messages from the current position. Stop either collection mode to save the messages collected so far in TXT or JSON. See README for installation instructions."

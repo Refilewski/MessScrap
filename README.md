@@ -22,7 +22,7 @@ MessScrap saves a conversation you open in Messenger. It scrolls in both directi
 
 ## Browser extensions
 
-**Prebuilt ZIPs (v0.2.1 with TXT export):** Download the latest packaged browser extensions from [GitHub Releases](https://github.com/Refilewski/MessScrap/releases). Use the Chromium ZIP for Chrome, Brave and **Orion on iOS**, or the Firefox ZIP for Firefox. The Firefox ZIP is not Mozilla-signed; installation rules still apply.
+**Prebuilt ZIPs:** Download the packaged browser extensions from [GitHub Releases](https://github.com/Refilewski/MessScrap/releases). **Scroll to top** requires v0.2.2 or newer. Use the Chromium ZIP for Chrome, Brave and **Orion on iOS**, or the Firefox ZIP for Firefox. The Firefox ZIP requires Mozilla signing for permanent installation.
 
 **Build from source (optional):** Clone the repository and build the extensions with Python 3.10 or newer. The build does not require Selenium.
 
@@ -58,7 +58,7 @@ The upward-only export is marked partial because newer messages beyond the start
 
 **Supported on iPhone via [Orion Browser](https://browser.kagi.com/orion/).** This method has been tested on an iPhone. Safari and Chrome for iOS are not supported directly. Termux is **only an optional way to build the extension on an Android device**; it does not run on iOS and is not needed if you download the prebuilt ZIP.
 
-1. Download `messscrap-chromium-0.2.1.zip` from [GitHub Releases](https://github.com/Refilewski/MessScrap/releases) and save it to **Files** on your iPhone.
+1. Download `messscrap-chromium-0.2.2.zip` from [GitHub Releases](https://github.com/Refilewski/MessScrap/releases) and save it to **Files** on your iPhone.
 2. Install **Orion Browser** on the iPhone and enable support for Chrome extensions in its settings.
 3. In Orion, open **Extensions → + → Install from File** (menu labels may vary) and select the downloaded ZIP.
 4. Visit `https://www.facebook.com/messages/`, sign in and open a specific conversation. If necessary, request the desktop version of the website and unlock the conversation.
@@ -73,7 +73,7 @@ git clone https://github.com/Refilewski/MessScrap.git
 cd MessScrap
 python extension/build.py --target chromium
 termux-setup-storage
-cp bin/messscrap-chromium-0.2.1.zip ~/storage/downloads/
+cp bin/messscrap-chromium-0.2.2.zip ~/storage/downloads/
 ```
 
 Allow Termux access to storage when prompted. Transfer the ZIP from Android Downloads to the iPhone (for example via LocalSend or cloud storage) and continue from step 2 above.
@@ -165,4 +165,4 @@ docs/         README artwork
 python -m unittest discover -s tests
 ```
 
-Run the standalone TXT formatter test with `node tests/test_txt_extension.mjs`. To run the Firefox smoke test, build the extension, set `MESSSCRAP_FIREFOX` to the Firefox executable, and run `node tests/test_firefox_extension.mjs`.
+Run the standalone TXT formatter test with `node tests/test_txt_extension.mjs` and the collection test with `node tests/test_extension_scroll.mjs`. To run the Firefox smoke test, build the extension, set `MESSSCRAP_FIREFOX` to the Firefox executable, and run `node tests/test_firefox_extension.mjs`.
