@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {setImmediate as nextTurn} from 'node:timers/promises';
 import {runInNewContext} from 'node:vm';
 
 const collector = readFileSync(new URL('../extension/collect.js', import.meta.url), 'utf8');
@@ -10,7 +11,7 @@ const records = Array.from({length: 11}, (_, index) => ({
   text: 'Message ' + index, author: 'Ada',
 }));
 
-function harness() {
+function harness(overrides = {}) {
   let position = 8;
   const directions = [];
   const root = {isConnected: true};
@@ -29,6 +30,8 @@ function harness() {
       };
     },
     setTimeout,
+    clearTimeout,
+    ...overrides,
   };
   runInNewContext(collector + '\nthis.collectChat = collectChat;', context);
   return {collectChat: context.collectChat, directions};
@@ -75,14 +78,125 @@ function harness() {
   assert(directions.includes(-1));
 }
 
+// Stop cancels a pending scan delay and keeps the first batch.
+{
+  const timer = 1;
+  const cleared = [];
+  let delay;
+  const {collectChat, directions} = harness({
+    setTimeout(_callback, milliseconds) {
+      delay = milliseconds;
+      return timer;
+    },
+    clearTimeout(id) { cleared.push(id); },
+  });
+  const controller = new AbortController();
+  const pending = collectChat(sourceUrl, () => {}, controller.signal, {pause: () => 450});
+  assert.equal(delay, 450);
+  controller.abort();
+  const result = await Promise.race([pending, nextTurn()]);
+  assert(result, 'Collection should finish without waiting for the timer.');
+  assert.deepEqual(cleared, [timer]);
+  assert.deepEqual(directions, [1]);
+  assert.equal(result.payload.count, 3);
+  assert.equal(result.payload.coverage.newer, 'interrupted');
+  assert.equal(result.payload.coverage.older, 'not_requested');
+}
+
+// A failed scan keeps completed coverage and previously collected messages.
+{
+  const location = {href: sourceUrl};
+  const {collectChat} = harness({location});
+  const result = await collectChat(sourceUrl, (_count, phase) => {
+    if (phase === 'older') location.href += '-next';
+  }, new AbortController().signal, {pause: () => 0, stableRounds: 1, limit: 30});
+  assert.equal(result.error, 'The tab switched to a different conversation.');
+  assert.equal(result.payload.source_url, sourceUrl);
+  assert.equal(result.payload.count, 3);
+  assert.equal(result.payload.partial, true);
+  assert.equal(result.payload.interrupted, false);
+  assert.equal(result.payload.coverage.newer, 'edge_stable');
+  assert.equal(result.payload.coverage.older, 'error');
+}
+
+// A conversation can replace its initial empty message container as it loads.
+{
+  const empty = {isConnected: true};
+  const loaded = {isConnected: true};
+  let lookups = 0;
+  const {collectChat, directions} = harness({
+    findContainer: () => lookups++ ? loaded : empty,
+    readMessages: root => ({records: root === loaded ? records.slice(8) : []}),
+    setTimeout(callback, delay) {
+      assert(lookups > 1 || directions.length === 0, 'Scroll must wait until messages exist.');
+      return setTimeout(callback, delay);
+    },
+  });
+  const result = await collectChat(sourceUrl, () => {}, new AbortController().signal, {
+    directions: [1], pause: () => 0, stableRounds: 1, limit: 5,
+  });
+  assert.equal(result.error, null);
+  assert.equal(lookups, 2);
+  assert.equal(result.payload.count, 3);
+  assert.equal(result.payload.coverage.newer, 'edge_stable');
+}
+
+// The loading wait honors the scan limit and remains stoppable with no messages.
+{
+  for (const [limit, expectedReads] of [[2, 2], [30, 4]]) {
+    let reads = 0;
+    const {collectChat, directions} = harness({
+      readMessages() {
+        reads++;
+        return {records: []};
+      },
+    });
+    const result = await collectChat(sourceUrl, () => {}, new AbortController().signal, {limit, pause: () => 0});
+    assert.match(result.error, /No messages detected/);
+    assert.equal(result.payload.coverage.newer, 'error');
+    assert.equal(reads, expectedReads);
+    assert.deepEqual(directions, []);
+  }
+
+  const {collectChat, directions} = harness({readMessages: () => ({records: []})});
+  const controller = new AbortController();
+  const pending = collectChat(sourceUrl, () => {}, controller.signal);
+  controller.abort();
+  const result = await pending;
+  assert.equal(result.error, null);
+  assert.equal(result.payload.count, 0);
+  assert.equal(result.payload.coverage.newer, 'interrupted');
+  assert.deepEqual(directions, []);
+}
+
+// An empty viewport may be re-rendering and cannot establish a stable edge.
+{
+  let reads = 0;
+  const {collectChat} = harness({
+    readMessages: () => ({records: reads++ === 0 ? records.slice(8) : []}),
+  });
+  const result = await collectChat(sourceUrl, () => {}, new AbortController().signal, {
+    directions: [1], pause: () => 0, stableRounds: 1, limit: 3,
+  });
+  assert.equal(result.error, null);
+  assert.equal(result.payload.count, 3);
+  assert.equal(result.payload.coverage.newer, 'round_limit');
+}
+
 // A panel that stays open when Messenger switches chats uses the new thread.
 {
   const location = {href: sourceUrl};
   const buttons = new Map();
   const shadow = {
+    adoptedStyleSheets: [],
+    append() {},
     querySelector(selector) {
       if (!buttons.has(selector)) {
-        buttons.set(selector, {addEventListener(_event, listener) { this.click = listener; }});
+        buttons.set(selector, {
+          addEventListener(_event, listener) { this.click = listener; },
+          focus() {},
+          dataset: {},
+        });
       }
       return buttons.get(selector);
     },

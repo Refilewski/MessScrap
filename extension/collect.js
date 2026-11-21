@@ -109,8 +109,22 @@ function makePayload(history, sourceUrl, coverage, interrupted) {
   };
 }
 
+function waitForNextScan(delay, signal) {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise(resolve => {
+    const timer = setTimeout(finish, delay);
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', finish);
+      resolve();
+    }
+    signal.addEventListener('abort', finish, {once: true});
+  });
+}
+
 async function collectChat(sourceUrl, onProgress, signal, options = {}) {
   const limit = options.limit ?? 5000;
+  const initialReadLimit = Math.min(limit, 4);
   const stableRounds = options.stableRounds ?? 10;
   const pause = options.pause ?? (direction => direction < 0 ? 450 : 250);
   const history = new History();
@@ -119,41 +133,49 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
   let root = null;
   let error = null;
 
-  try {
-    for (const direction of directions) {
-      if (signal.aborted) break;
-      const phase = direction > 0 ? 'newer' : 'older';
-      let previousEdge = null;
-      let stable = 0;
-      coverage[phase] = 'in_progress';
+  for (const direction of directions) {
+    if (signal.aborted) break;
+    const phase = direction > 0 ? 'newer' : 'older';
+    let previousEdge = null;
+    let stable = 0;
+    let outcome = 'round_limit';
+    try {
       for (let round = 1; round <= limit; round++) {
         if (signal.aborted) break;
         if (threadUrl(location.href) !== sourceUrl) throw new Error('The tab switched to a different conversation.');
         if (!root?.isConnected) root = findContainer();
         const result = root ? readMessages(root, false, false, false, 0) : null;
-        if (!result?.records.length && history.entries.size === 0) {
-          throw new Error('No messages detected. Unlock the conversation or try Desktop site.');
+        const records = result?.records || [];
+        if (!records.length && history.entries.size === 0) {
+          if (round >= initialReadLimit) {
+            throw new Error('No messages detected. Unlock the conversation or try Desktop site.');
+          }
+          root = null;
+          await waitForNextScan(pause(direction), signal);
+          continue;
         }
 
-        const added = history.addWindow(result?.records || [], direction);
+        const added = history.addWindow(records, direction);
         const state = root ? scrollMessages(root, direction, round < limit) : null;
-        const edge = state?.atEdge && !state.loading
+        const edge = records.length && state?.atEdge && !state.loading
           ? [state.before, state.height, state.viewport].join(':')
           : null;
         stable = !added && edge && edge === previousEdge ? stable + 1 : 0;
         previousEdge = edge;
         onProgress(history.entries.size, phase);
+        if (signal.aborted) break;
         if (stable >= stableRounds) {
-          coverage[phase] = 'edge_stable';
+          outcome = 'edge_stable';
           break;
         }
-        if (round === limit) coverage[phase] = 'round_limit';
-        else await new Promise(resolve => setTimeout(resolve, pause(direction)));
+        if (round < limit) await waitForNextScan(pause(direction), signal);
       }
-      if (signal.aborted) coverage[phase] = 'interrupted';
+    } catch (failure) {
+      coverage[phase] = 'error';
+      error = failure?.message || 'Could not read the conversation.';
+      break;
     }
-  } catch (failure) {
-    error = failure.message || 'Could not read the conversation.';
+    coverage[phase] = signal.aborted ? 'interrupted' : outcome;
   }
 
   return {payload: makePayload(history, sourceUrl, coverage, signal.aborted), error};

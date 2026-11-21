@@ -42,6 +42,7 @@ After opening the panel in a Messenger conversation:
 - **Scroll to top** begins at the current scroll position and scans **only toward older messages**. It never scrolls down first.
 - **Stop** interrupts either scan and preserves everything collected so far.
 - **Save JSON** and **Save TXT** download the collected messages independently, including after Stop. TXT is a readable transcript without message IDs or raw URLs.
+- **Minimize panel** keeps a scan running while you view the conversation. After scanning, you can close the panel and reopen it from the extension toolbar to save your export while the tab stays open.
 
 The upward-only export is marked partial because newer messages beyond the starting position were not scanned. Messenger may stop exposing messages before the true beginning of a conversation.
 

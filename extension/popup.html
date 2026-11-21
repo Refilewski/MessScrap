@@ -1,18 +1,119 @@
 <!doctype html>
 <html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MessScrap</title>
-<style>
-:root { color-scheme: light dark; }
-body { box-sizing: border-box; min-width: 250px; max-width: 360px; padding: 12px; margin: 0; font: 15px system-ui, sans-serif; }
-h1 { font-size: 18px; margin: 0; }
-p { line-height: 1.4; }
-button { min-height: 44px; font: inherit; padding: 0 12px; }
-</style>
-<h1>MessScrap</h1>
-<p id="status" role="status">Open the export panel in the active Messenger conversation.</p>
-<button type="button" id="open">Open panel</button>
-<script src="thread.js"></script>
-<script src="popup.js"></script>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MessScrap</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      background: #111323;
+      color: #f5f4ff;
+      font: 14px/1.45 system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      box-sizing: border-box;
+      width: 320px;
+      max-width: 100%;
+      margin: 0;
+      padding: 18px;
+      background: radial-gradient(ellipse at 0 0, #29234b, transparent 68%);
+      font: inherit;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      flex: 0 0 36px;
+      height: 36px;
+      border-radius: 11px;
+      background: linear-gradient(145deg, #6954dd, #4433a8);
+      color: #fff;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    h1 { margin: 0; font-size: 19px; line-height: 1.2; }
+    .description { margin: 2px 0 0; color: #b3b6d0; font-size: 12px; }
+
+    #status {
+      display: flex;
+      gap: 9px;
+      margin: 16px 0 12px;
+      padding: 10px 11px;
+      border: 1px solid #333750;
+      border-radius: 9px;
+      background: #1b1e34;
+      color: #cdd3e6;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    #status::before {
+      content: '';
+      flex: 0 0 6px;
+      height: 6px;
+      margin-top: 6px;
+      border-radius: 50%;
+      background: #a69aff;
+    }
+
+    #status[data-state="error"] { border-color: #774554; color: #ffd1d9; }
+    #status[data-state="error"]::before { background: #ff9aac; }
+    #status[data-state="success"]::before { background: #8be1bd; }
+
+    button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 12px;
+      border: 1px solid #8876f7;
+      border-radius: 9px;
+      background: linear-gradient(145deg, #5c49cb, #4937b0);
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 650;
+      text-align: left;
+    }
+
+    button::after {
+      content: '';
+      width: 7px;
+      height: 7px;
+      margin-right: 3px;
+      border-top: 2px solid currentColor;
+      border-right: 2px solid currentColor;
+      transform: rotate(45deg);
+    }
+
+    button:hover:enabled { background: linear-gradient(145deg, #6b57dd, #5340c1); border-color: #b2a5ff; }
+    button:focus-visible { outline: 2px solid #c4bbff; outline-offset: 3px; }
+    button:disabled { cursor: wait; opacity: .68; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="mark" aria-hidden="true">↓</span>
+      <div>
+        <h1>MessScrap</h1>
+        <p class="description">Chat export</p>
+      </div>
+    </header>
+    <p id="status" role="status">Open a Messenger chat to start.</p>
+    <button type="button" id="open">Open export panel</button>
+  </main>
+  <script src="thread.js"></script>
+  <script src="popup.js"></script>
+</body>
 </html>

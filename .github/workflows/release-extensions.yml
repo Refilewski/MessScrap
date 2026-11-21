@@ -67,4 +67,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "MessScrap v$VERSION" \
-            --notes "Scroll to top collects older messages from the current position. Stop either collection mode to save the messages collected so far in TXT or JSON. See README for installation instructions."
+            --notes "The redesigned panel shows the scan direction and message count. Scroll to top collects older messages from the current position, and Stop immediately prepares the collected history for TXT or JSON export. See README for installation instructions."
