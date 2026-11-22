@@ -175,6 +175,7 @@ function installPanel() {
   });
   const guard = new ConversationGuard();
   let prefs = {...defaults};
+  const preferenceEdits = {};
   let current = guard.inspect();
   let task;
   let saved;
@@ -261,7 +262,7 @@ function installPanel() {
     render();
   };
   request('preferences').then(value => {
-    prefs = {...defaults, ...value};
+    prefs = {...defaults, ...value, ...preferenceEdits};
     applyPreferences();
   }).catch(err => error(err.message));
   for (const key of Object.keys(defaults)) {
@@ -274,6 +275,7 @@ function installPanel() {
       }
       prefs[key] = input.type === 'checkbox' ? input.checked
         : input.type === 'number' ? (input.valueAsNumber || defaults[key]) : input.value;
+      preferenceEdits[key] = prefs[key];
       applyPreferences();
       request('save-preferences', undefined, {[key]: prefs[key]}).catch(err => error(err.message));
     });

@@ -198,7 +198,7 @@ try {
   assert.equal(conversation.schemaVersion, 2);
   assert.equal(conversation.conversation.id, 'studio-weekend');
   assert.equal(conversation.messages.length, 24);
-  assert.equal(exported.media.archived, 1);
+  assert.equal(exported.media.archived, 1, JSON.stringify(exported.media) + ' ' + JSON.stringify(exported.attachments));
   assert.equal(conversation.messages[5].attachments[0].status, 'archived');
 
   // An asynchronous SPA transition must invalidate the just-exported scan before
