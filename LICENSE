@@ -1,0 +1,56 @@
+MessScrap Source-Available License
+Private / Internal Use — No Redistribution
+
+Copyright (c) 2026 Refilewski. All rights reserved.
+
+1. PERMITTED USE
+
+You may download, install, and run MessScrap on devices under your control
+for personal or internal use without paying a license fee.
+
+You may inspect the source code and make modifications only for your own
+private, local use. All original and modified copies must remain under
+your control and must not be published, shared, or distributed to others.
+
+2. RESTRICTIONS
+
+Except with the copyright holder's prior written permission, you may not:
+
+- Publish, redistribute, mirror, upload, sell, sublicense, or otherwise
+  make available the Software or any copy of it to others, whether in
+  source-code, binary, or packaged form.
+- Publish or distribute modified versions, forks, or derivative works.
+- Rebrand the Software or claim authorship of it.
+- Provide the Software to others as a hosted or publicly accessible
+  service.
+
+You may share links to the official MessScrap repository and official
+releases without redistributing the Software itself.
+
+Do not remove or alter existing copyright or license notices.
+
+3. CONTRIBUTIONS
+
+Suggestions and bug reports are welcome. Code contributions to the
+official repository require the copyright holder's permission. A code
+submission does not grant permission to redistribute the Software.
+
+4. THIRD-PARTY MATERIALS AND USER DATA
+
+Third-party dependencies and materials remain subject to their own
+licenses. This license covers MessScrap software, not the conversations,
+media, or archives you export using it. Exported content remains subject
+to applicable laws and the rights of its respective owners.
+
+5. RESERVATION OF RIGHTS
+
+All rights not expressly granted above are reserved by the copyright
+holder. This is a source-available license, not an open-source license.
+
+6. DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. TO THE MAXIMUM
+EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER IS NOT LIABLE
+FOR DAMAGES ARISING FROM USE OF THE SOFTWARE.
