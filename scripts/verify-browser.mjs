@@ -197,7 +197,12 @@ try {
   track(handset);
   await handset.goto(url);
   await assertVisible(handset.getByRole('heading', {name: 'Weekend Plans'}));
-  assert.equal(await handset.evaluate(() => document.documentElement.scrollWidth), 390);
+  for (const width of [390, 320]) {
+    await handset.setViewportSize({width, height: 844});
+    const layoutWidth = await handset.evaluate(() => document.documentElement.scrollWidth);
+    assert.equal(layoutWidth, width, 'The archive must fit the mobile viewport without horizontal scrolling.');
+  }
+  await handset.setViewportSize({width: 390, height: 844});
   const toggle = handset.getByRole('button', {name: 'Toggle navigation'});
   await toggle.click();
   await assertVisible(handset.getByRole('searchbox', {name: 'Search messages'}));
