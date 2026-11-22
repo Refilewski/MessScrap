@@ -1,0 +1,62 @@
+name: Verify and package MessScrap
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: messscrap-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Check source and release versions
+        run: node scripts/check.mjs
+      - name: Run regression tests
+        run: npm test
+      - name: Build extension and CLI
+        run: |
+          npm run build:extension
+          npm run pack:cli
+      - name: Verify distribution files and install packaged CLI
+        run: node scripts/verify-packages.mjs
+      - name: Install browsers for package smoke tests
+        run: |
+          npx playwright install --with-deps --no-shell chromium firefox
+          chromium="$(node -p "require('playwright').chromium.executablePath()")"
+          firefox="$(node -p "require('playwright').firefox.executablePath()")"
+          test -x "$chromium"
+          test -x "$firefox"
+          printf 'MESSSCRAP_CHROMIUM=%s\nMESSSCRAP_FIREFOX=%s\n' "$chromium" "$firefox" >> "$GITHUB_ENV"
+      - name: Verify generated archive and run offline browser smoke tests
+        run: |
+          node scripts/verify-browser.mjs
+          node tests/test_chromium_extension.mjs
+          node tests/test_firefox_extension.mjs
+      - name: Upload verified packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: messscrap-distribution
+          path: |
+            bin/*.zip
+            bin/*.tgz
+            bin/SHA256SUMS
+          if-no-files-found: error

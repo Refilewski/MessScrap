@@ -1,18 +1,17 @@
-const root = arguments[0];
-const dumpSamples = arguments[2];
-const maxSamples = arguments[4];
-const captureInlineMedia = arguments[8];
+const [root, verifiedPane, captureInlineMedia] = arguments;
 const selector = '[data-message-id], [aria-roledescription="message"]';
-const log = root.matches('[role="log"]') ? root : root.querySelector('[role="log"]');
-const scope = log || root;
+const paneSelector = '[role="log"], [role="grid"]';
+const log = root.matches(paneSelector) ? root : root.querySelector(paneSelector);
+const scope = verifiedPane || log || root;
 const rows = Array.from(scope.querySelectorAll(selector)).filter(row => !row.parentElement.closest(selector));
 if (!rows.length) return null;
 const inlineMedia = [];
-if (captureInlineMedia) window.__messscrapInlineMedia = inlineMedia;
 
 const ui = '[role="toolbar"], [role="menu"], [role="heading"], h1, h2, h3, h4, [hidden]';
 const replyPattern = /^(?:go to\b|original message\b|przejdź do\b|oryginalna wiadomość\b)/i;
 const reactionPattern = /\b(?:reacted|reactions?)\b|zareagowa|reakcj/i;
+const editedPattern = /^(?:edited(?: message)?|edytowano|zmodyfikowano)$/i;
+const forwardedPattern = /^(?:forwarded(?: message)?|przekazano dalej)$/i;
 const receiptPattern = /^(?:seen(?: by\b|$)|read by\b|delivered$|sent(?:$| just now\b| \d+[smhd] ago\b)|wyświetlon|odczytan|dostarczon|wysłan)/i;
 const profilePattern = /(?:profile (?:photo|picture)|zdjęcie profilowe)/i;
 const selfPattern = /^(?:you|ty)$/i;
@@ -172,14 +171,11 @@ function assetsIn(row, allowed) {
 function classify(content, assets) {
   if (assets.length) return assets[0].kind === 'file' ? 'attachment' : assets[0].kind;
   if (/^(?:missed (?:audio |video )?call|(?:audio|video) call|nieodebrane połączenie|połączenie (?:głosowe|wideo))(?:$|[.,\n])/i.test(content)) return 'call';
-  if (/^(?:you unsent a message|.+ unsent a message|cofnięto wysłanie wiadomości|wiadomość została usunięta)[.!]?$/i.test(content)) return 'event';
+  if (/^(?:you unsent a message|.+ unsent a message|cofnięto wysłanie wiadomości|wiadomość została usunięta)[.!]?$/i.test(content)) return 'system';
   return content ? 'text' : 'unknown';
 }
 
-window.__messscrapNodes ??= {ids: new WeakMap(), next: 0};
-const nodeIds = window.__messscrapNodes;
 const bounds = root.getBoundingClientRect();
-const samples = [];
 const records = [];
 
 for (const row of rows) {
@@ -191,6 +187,12 @@ for (const row of rows) {
   const labelled = Array.from(row.querySelectorAll('[aria-label], [title]'))
     .filter(el => !el.closest(ui));
   const quote = labelled.find(el => replyPattern.test(label(el)));
+  const marker = (attribute, pattern) => row.hasAttribute(attribute)
+    || labelled.some(el => pattern.test(label(el)))
+    || [...row.querySelectorAll('[dir="auto"]')].some(el => pattern.test(flat(el.textContent))
+      && (el.hasAttribute(attribute) || el.getAttribute('role') === 'note'));
+  const edited = marker('data-edited', editedPattern);
+  const forwarded = marker('data-forwarded', forwardedPattern);
   const reactionNodes = new Set(labelled.filter(el => el.matches('button, [role="button"]') && reactionPattern.test(label(el))));
   const receiptNodes = new Set([
     ...labelled.filter(el => receiptPattern.test(label(el))),
@@ -198,7 +200,7 @@ for (const row of rows) {
   ]);
   const excluded = new Set([...reactionNodes, ...receiptNodes, ...(quote ? [quote] : [])]);
   const allowed = el => {
-    if (el.closest(ui)) return false;
+    if (el.closest(ui) || editedPattern.test(label(el)) || forwardedPattern.test(label(el))) return false;
     for (let node = el; node !== row && node; node = node.parentElement) {
       if (excluded.has(node)) return false;
     }
@@ -207,7 +209,8 @@ for (const row of rows) {
 
   const parts = bodyParts(row, allowed);
   const attachments = assetsIn(row, allowed);
-  const links = Array.from(row.querySelectorAll('a[href]')).filter(allowed).flatMap(el => {
+  const links = Array.from(row.querySelectorAll('a[href]')).filter(el => allowed(el)
+    && !el.hasAttribute('download') && !/^(?:download|pobierz)\b/i.test(label(el))).flatMap(el => {
     const url = knownUrl(el.getAttribute('href'));
     return url ? [{url, text: bodyText(el) || label(el) || null}] : [];
   });
@@ -222,24 +225,33 @@ for (const row of rows) {
   const content = parts.map(part => part.content).join('\n') || meta.fallbackText;
   const point = (parts[0]?.element || row.querySelector('video, audio, [role="img"]') || row).getBoundingClientRect();
   const side = (point.left + point.right - bounds.left - bounds.right) / 2;
-  const direction = meta.sender ? (selfPattern.test(meta.sender) ? 'me' : 'other')
-    : Math.abs(side) > bounds.width * 0.06 ? (side > 0 ? 'me' : 'other') : 'unknown';
   const timeElement = Array.from(row.querySelectorAll('time[datetime]')).find(allowed);
-  if (!nodeIds.ids.has(row)) nodeIds.ids.set(row, ++nodeIds.next);
+  const nativeDirection = row.getAttribute('data-message-direction');
+  const nativeTimestamp = row.getAttribute('data-timestamp') || row.getAttribute('data-utime');
+  const unixTimestamp = /^\d{9,13}$/.test(nativeTimestamp) ? Number(nativeTimestamp) : null;
+  const localDate = /^(?:[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{4}-\d{2}-\d{2})$/.test(meta.date)
+    ? Date.parse(meta.date + ' ' + meta.time)
+    : NaN;
+  const timestampValue = timeElement?.getAttribute('datetime') || unixTimestamp
+    || (Number.isFinite(localDate) ? new Date(localDate).toISOString() : null);
+  const direction = ['me', 'other'].includes(nativeDirection) ? nativeDirection : meta.sender ? (selfPattern.test(meta.sender) ? 'me' : 'other')
+    : Math.abs(side) > bounds.width * 0.06 ? (side > 0 ? 'me' : 'other') : 'unknown';
 
   records.push({
     source_message_id: row.getAttribute('data-message-id'),
-    node_id: nodeIds.ids.get(row),
-    structured: true,
     text: content,
-    author: meta.author,
+    author: meta.author || row.getAttribute('data-sender-name') || null,
+    sender: meta.sender || row.getAttribute('data-sender-name') || null,
     direction,
     date: meta.date || null,
     time: meta.time || null,
     datetime_raw: meta.datetime_raw || null,
-    timestamp: timeElement?.getAttribute('datetime') || null,
+    timestamp: timestampValue,
     accessibility_label: rawLabel || null,
-    message_type: classify(content, attachments),
+    message_type: row.hasAttribute('data-system-message')
+      || nativeDirection === 'system' ? 'system' : classify(content, attachments),
+    edited,
+    forwarded,
     avatar,
     reply_to: replyPreview(quote),
     attachments,
@@ -247,8 +259,5 @@ for (const row of rows) {
     reactions,
     receipts,
   });
-  if (dumpSamples && samples.length < maxSamples) {
-    samples.push({source_message_id: row.getAttribute('data-message-id'), outer_html: row.outerHTML.slice(0, 2500)});
-  }
 }
-return {records, samples, skipped: []};
+return {records, inlineMedia};

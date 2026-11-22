@@ -7,22 +7,22 @@ open.addEventListener('click', async () => {
   try {
     const [tab] = await api.tabs.query({active: true, currentWindow: true});
     if (!threadUrl(tab?.url)) {
-      status.textContent = 'Open a specific conversation on facebook.com/messages. On Android, try Desktop site.';
+      status.textContent = 'Open a Messenger conversation first. On Android, try Desktop site.';
       return;
     }
-
+    const target = {tabId: tab.id};
+    await api.scripting.executeScript({target, files: ['content.js']});
     const [injection] = await api.scripting.executeScript({
-      target: {tabId: tab.id},
-      files: ['content.js'],
+      target, func: () => Boolean(document.getElementById('messscrap-export-panel')),
     });
     if (injection?.result !== true) {
-      status.textContent = 'Could not open the panel. Check that the conversation is still open.';
+      status.textContent = 'The conversation changed before the panel could open.';
       return;
     }
-    status.textContent = 'The panel is ready in the conversation tab.';
+    status.textContent = 'The panel is open in the active conversation.';
     window.close();
   } catch {
-    status.textContent = 'The browser did not allow the panel to open in this tab.';
+    status.textContent = 'The browser could not open the panel in this tab.';
   } finally {
     open.disabled = false;
   }

@@ -1,18 +1,17 @@
 <!doctype html>
 <html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MessScrap</title>
-<style>
-:root { color-scheme: light dark; }
-body { box-sizing: border-box; min-width: 250px; max-width: 360px; padding: 12px; margin: 0; font: 15px system-ui, sans-serif; }
-h1 { font-size: 18px; margin: 0; }
-p { line-height: 1.4; }
-button { min-height: 44px; font: inherit; padding: 0 12px; }
-</style>
-<h1>MessScrap</h1>
+<link rel="stylesheet" href="popup.css">
+<script src="popup.js" defer></script>
+</head>
+<body>
+<header><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></svg><h1>MessScrap</h1></header>
+<main>
 <p id="status" role="status">Open the export panel in the active Messenger conversation.</p>
 <button type="button" id="open">Open panel</button>
-<script src="thread.js"></script>
-<script src="popup.js"></script>
+</main>
+</body>
 </html>
