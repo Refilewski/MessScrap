@@ -33,5 +33,6 @@
   "devDependencies": {
     "esbuild": "^0.25.12",
     "playwright": "^1.65.1"
-  }
+  },
+  "license": "SEE LICENSE IN LICENSE"
 }
