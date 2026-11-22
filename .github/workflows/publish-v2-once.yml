@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release-v2:
-    if: ${{ github.repository == 'Refilewski/MessScrap' && github.event.head_commit.message == 'release: publish MessScrap v2.0.0 once' }}
+    if: "${{ github.repository == 'Refilewski/MessScrap' && github.event.head_commit.message == 'release: publish MessScrap v2.0.0 once' }}"
     runs-on: ubuntu-latest
     steps:
       - name: Check out exact source commit
