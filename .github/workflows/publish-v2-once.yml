@@ -1,0 +1,77 @@
+name: Publish MessScrap v2.0.0 once
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-v2-once.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  release-v2:
+    if: ${{ github.repository == 'Refilewski/MessScrap' && github.event.head_commit.message == 'release: publish MessScrap v2.0.0 once' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact source commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and verify MessScrap 2.0.0
+        run: |
+          npm ci
+          node scripts/check.mjs
+          npm test
+          npm run build:extension
+          npm run pack:cli
+          node scripts/verify-packages.mjs
+      - name: Publish the one-time GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v2.0.0 >/dev/null 2>&1; then
+            echo "The release v2.0.0 already exists; refusing to overwrite it."
+            exit 1
+          fi
+          if git ls-remote --exit-code origin refs/tags/v2.0.0 >/dev/null 2>&1; then
+            echo "The tag v2.0.0 already exists; refusing to move it."
+            exit 1
+          fi
+          cat > /tmp/messscrap-v2-notes.md <<'NOTES'
+          ## MessScrap 2.0.0
+
+          Your conversations. Your data. Your archive.
+
+          ### What's new
+          - One shared capture engine and archive schema for the browser extension and Node.js CLI.
+          - Offline archive viewer with search, media, files, links, replies, and conversation statistics.
+          - TXT, JSON, CSV, HTML and ZIP exports; ZIPs can include available local attachments.
+          - Pause/resume and checkpoints, batch export, archive updates, imports and validation.
+          - Safer capture across Messenger conversation changes, with explicit partial-coverage reporting.
+
+          ### Downloads
+          - `messscrap-chromium-2.0.0.zip` — Chrome/Brave desktop extension.
+          - `messscrap-firefox-2.0.0.zip` — Firefox desktop extension.
+          - `messscrap-2.0.0.tgz` — Node.js CLI (requires Node.js 22.11+).
+          - `SHA256SUMS` — checksum file for all packages.
+
+          Android Firefox and iOS Orion compatibility are experimental and not fully verified.
+          Review the README for installation guidance and the source-available private-use license.
+          NOTES
+          gh release create v2.0.0 \
+            bin/messscrap-chromium-2.0.0.zip \
+            bin/messscrap-firefox-2.0.0.zip \
+            bin/messscrap-2.0.0.tgz \
+            bin/SHA256SUMS \
+            --target "$GITHUB_SHA" \
+            --title "MessScrap v2.0.0" \
+            --notes-file /tmp/messscrap-v2-notes.md \
+            --latest
