@@ -10,8 +10,10 @@
 <p align="center">
   <a href="https://github.com/Refilewski/MessScrap/releases"><img alt="MessScrap 2.0.0" src="https://img.shields.io/badge/MessScrap-2.0.0-2563EB?logo=github"></a>
   <a href="https://github.com/Refilewski/MessScrap/actions"><img alt="Build and tests" src="https://github.com/Refilewski/MessScrap/actions/workflows/verify.yml/badge.svg"></a>
-  <a href="#license"><img alt="License status" src="https://img.shields.io/badge/license-unspecified-64748B"></a>
+  <a href="#license"><img alt="License: private use, no redistribution" src="https://img.shields.io/badge/license-private%20use%20only-64748B"></a>
   <a href="#platforms"><img alt="Windows, macOS, and Linux" src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-64748B"></a>
+  <a href="#platforms"><img alt="Android experimental support" src="https://img.shields.io/badge/Android-experimental-3DDC84?logo=android&logoColor=white"></a>
+  <a href="#platforms"><img alt="iOS experimental support" src="https://img.shields.io/badge/iOS-experimental-64748B?logo=apple&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -19,8 +21,11 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#archive-viewer">Archive viewer</a> ·
   <a href="docs/CLI.md">CLI reference</a> ·
-  <a href="#development">Development</a>
+  <a href="#development">Development</a> ·
+  <a href="#license">License</a>
 </p>
+
+**Mobile:** Android (Firefox, experimental) · iOS (Orion, experimental). Both can open exported offline archives; live capture is not guaranteed on mobile. See [platforms](#platforms).
 
 MessScrap collects messages in a conversation you open and unlock in Messenger. Keep a compact transcript, build a self-contained archive with media, or use the terminal to search, validate, and update existing archives. Capture, processing, and storage run locally through your browser session and filesystem.
 
@@ -44,8 +49,10 @@ MessScrap collects messages in a conversation you open and unlock in Messenger. 
 | Batch export | Select visible conversations in the panel | Select visible conversation IDs or provide existing archives |
 | Archive operations | Update a conversation from an existing JSON archive | Import, validate, search, statistics, and update |
 
+**Mobile live capture is experimental, not officially verified for all devices.** There is no native Android or iOS app and no mobile CLI. The offline archive viewer is designed for mobile browsers.
+
 <details>
-<summary>Firefox Android and Orion on iOS</summary>
+<summary>Android (Firefox) and iOS (Orion) installation notes</summary>
 
 Firefox 142+ on Android uses Mozilla's USB debugging workflow for development installation. Request Messenger's desktop site if the mobile page does not expose the message list. The Chromium build can be tried in Orion's Chrome-extension compatibility mode on iOS. Browser and mobile Messenger changes can affect capture, downloads, and checkpoint storage. [Firefox Android extension development](https://extensionworkshop.com/documentation/develop/developing-extensions-for-firefox-for-android/) · [Orion](https://browser.kagi.com/orion/)
 
@@ -202,9 +209,9 @@ npm run pack:cli
 
 The extension builder writes browser folders and ZIPs under `bin/`. On Windows, use `py -3 extension/build.py --target all` if the interpreter is available through the Python launcher. [Release guide](docs/RELEASING.md) · [Benchmarks](docs/benchmarks.md) · [Changelog](CHANGELOG.md)
 
-### Contributing
+### Feedback and contributions
 
-Open an issue or pull request with the MessScrap version, browser, platform, scan mode, and a synthetic reproduction. For changes to exports, include a generated sample and validate the packaged CLI or browser extension that produces it. [Issues](https://github.com/Refilewski/MessScrap/issues)
+Open an issue with the MessScrap version, browser, platform, scan mode, and a synthetic reproduction. Code contributions to the official repository require maintainer permission; the [license](LICENSE) does not permit public redistribution of modified copies. [Issues](https://github.com/Refilewski/MessScrap/issues)
 
 ### Roadmap
 
@@ -214,4 +221,6 @@ Open an issue or pull request with the MessScrap version, browser, platform, sca
 
 ## License
 
-MessScrap's source is available in this repository. The repository currently provides no explicit software license.
+**Source-available · Private/internal use · No redistribution.** You may download and run MessScrap and make changes **only for your own private, local use**. You may **not** republish, share, sell, redistribute, rebrand, or host the software for others, whether original or modified, without written permission. Linking to the official repository or releases is allowed.
+
+Read the full [MessScrap Source-Available License](LICENSE). **This is not an open-source license.** The license covers the software, not your exported conversation archives.
