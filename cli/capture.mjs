@@ -185,7 +185,8 @@ export async function captureTab(connection, tab, options, consume) {
     if (resume) onNotice('Resuming with ' + resume.count.toLocaleString('en') + ' checkpoint messages.');
     const checkpoint = Boolean(options.checkpoint || resume);
     signal.throwIfAborted();
-    await connection.capture('start', { ...captureOptions, checkpoint, resume });
+    await connection.capture('start', { ...captureOptions, checkpoint, resume,
+      expectedIdentity: { id: current.id, generation: current.generation } });
     signal.addEventListener('abort', cancel, { once: true });
     if (signal.aborted) cancel();
     cleanupKeyboard = keyboard(connection, options.keyboard, onNotice);
@@ -202,8 +203,10 @@ export async function captureTab(connection, tab, options, consume) {
       onProgress(state.progress, !state.running);
       if (checkpoint && state.checkpointRevision !== revision && state.running) {
         const detail = await connection.capture('state', { detail: true });
-        if (detail?.checkpoint) await saveCheckpoint(options.checkpointDirectory, detail.checkpoint);
-        revision = detail?.checkpointRevision ?? state.checkpointRevision;
+        if (detail?.checkpoint) {
+          await saveCheckpoint(options.checkpointDirectory, detail.checkpoint);
+          revision = detail.checkpointRevision;
+        }
       }
       if (!state.running) break;
       if (signal.aborted) {
@@ -218,8 +221,15 @@ export async function captureTab(connection, tab, options, consume) {
       await saveCheckpoint(options.checkpointDirectory, detail.checkpoint);
     }
     const payload = detail?.result?.payload;
+    if (!payload?.count) {
+      const reason = detail?.result?.error || detail?.progress?.reason || 'No messages were captured.';
+      const diagnostics = detail?.progress?.diagnostics;
+      const summary = diagnostics && diagnostics.identity !== 'verified'
+        ? ` Message list ${diagnostics.containerFound ? 'found' : 'unavailable'}. ${diagnostics.visibleRows} rendered rows.`
+        : '';
+      throw new Error(reason + summary);
+    }
     const end = await connection.capture('inspect');
-    if (!payload?.count) throw new Error(detail?.result?.error || detail?.progress?.reason || 'No messages were captured.');
     if (!end?.ready || end.id !== current.id || payload.conversation.id !== current.id ||
         end.generation !== current.generation) {
       throw new Error('The conversation changed before export. Start a new scan in the active conversation.');

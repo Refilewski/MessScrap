@@ -1,6 +1,6 @@
 {
   "name": "messscrap",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Local-first Messenger conversation archiving and offline viewing",
   "type": "module",
   "bin": {

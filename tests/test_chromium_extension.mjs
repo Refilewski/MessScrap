@@ -33,6 +33,8 @@ const fixture = `<!doctype html><meta charset="utf-8"><title>Synthetic Messenger
 const chat = document.querySelector('#chat');
 const list = document.querySelector('#list');
 const start = 'studio-weekend';
+const responsive = new URLSearchParams(location.search).has('responsive');
+if (responsive) list.removeAttribute('role');
 const thread = () => location.pathname.split('/').at(-1);
 const label = id => id === start ? 'Studio Weekend' : 'Reading Room';
 const notes = [
@@ -54,10 +56,16 @@ function render() {
     const row = document.createElement('article');
     const who = ['Avery Chen', 'Sam Rivera', 'You'][i % 3];
     const line = rendered === start ? notes[i % notes.length] : 'Reading Room message ' + i;
-    row.dataset.messageId = rendered + '-' + i;
+    row.dataset.threadId = rendered;
+    if (responsive) {
+      row.dataset.senderName = who;
+      row.dataset.messageDirection = who === 'You' ? 'me' : 'other';
+    } else {
+      row.dataset.messageId = rendered + '-' + i;
+      row.setAttribute('aria-label', 'At November 21, 2026 10:00 AM, ' + who + ': ' + line);
+    }
     row.classList.toggle('mine', who === 'You');
     row.style.top = (i * 72) + 'px';
-    row.setAttribute('aria-label', 'At November 21, 2026 10:00 AM, ' + who + ': ' + line);
     const body = document.createElement('div');
     body.dir = 'auto';
     body.textContent = line;
@@ -96,7 +104,6 @@ bind(thread());
 
 const root = await mkdtemp(join(tmpdir(), 'messscrap-chromium-'));
 const unpacked = join(root, 'extension');
-const profile = join(root, 'profile');
 const packageInfo = JSON.parse(await readFile('package.json', 'utf8'));
 const archiveFile = resolve(process.argv[2] || `bin/messscrap-chromium-${packageInfo.version}.zip`);
 const origin = 'https://www.facebook.com';
@@ -121,6 +128,21 @@ const debugPort = await new Promise((resolvePort, reject) => {
 });
 
 let context;
+function launch(profile, extraArgs = []) {
+  return chromium.launchPersistentContext(join(root, profile), {
+    executablePath, channel: 'chromium', headless: true,
+    viewport: {width: 1100, height: 720}, deviceScaleFactor: 2,
+    args: [`--disable-extensions-except=${unpacked}`, `--load-extension=${unpacked}`,
+      '--disable-background-networking', ...extraArgs],
+  });
+}
+
+function backgroundWorker(context) {
+  const isStorageWorker = worker => /^chrome-extension:\/\/[^/]+\/storage\.js$/u.test(worker.url());
+  return context.serviceWorkers().find(isStorageWorker)
+    ?? context.waitForEvent('serviceworker', {predicate: isStorageWorker});
+}
+
 try {
   await mkdir(unpacked);
   execFileSync('python3', ['-m', 'zipfile', '-e', archiveFile, unpacked]);
@@ -129,23 +151,26 @@ try {
   assert.deepEqual(manifest.permissions.sort(), ['activeTab', 'scripting', 'storage']);
   assert(!manifest.host_permissions, 'The distributed extension must use only the active-tab grant.');
   assert.equal(manifest.version, packageInfo.version);
+  context = await launch('package-profile');
+  const installed = await backgroundWorker(context);
+  const installedManifest = await installed.evaluate(() => chrome.runtime.getManifest());
+  assert.equal(installedManifest.version, packageInfo.version);
+  assert.deepEqual(installedManifest.background, {service_worker: 'storage.js'});
+  assert(!installedManifest.host_permissions, 'The packaged extension installed with only the shipped permissions.');
+  await context.close();
+  context = null;
+
   // Headless Chromium cannot click its own toolbar. Grant the unpacked test
   // copy access to the fixture origin, which is intercepted and never queried.
   await writeFile(manifestPath, JSON.stringify({...manifest, host_permissions: [origin + '/*']}));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath, channel: 'chromium', headless: true,
-    viewport: {width: 1100, height: 720}, deviceScaleFactor: 2,
-    args: [`--disable-extensions-except=${unpacked}`, `--load-extension=${unpacked}`, '--disable-background-networking',
-      '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=' + debugPort],
-  });
+  context = await launch('fixture-profile', ['--remote-debugging-address=127.0.0.1', '--remote-debugging-port=' + debugPort]);
   await context.route('https://**/*', route => {
     if (route.request().url().startsWith(origin + '/messages/e2ee/t/')) {
       return route.fulfill({contentType: 'text/html; charset=utf-8', body: fixture});
     }
     return route.abort();
   });
-  const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
-  assert.equal(await worker.evaluate(() => chrome.runtime.getManifest().version), packageInfo.version);
+  const worker = await backgroundWorker(context);
   const popupUrl = await worker.evaluate(() => chrome.runtime.getURL('popup.html'));
   const page = context.pages()[0];
   await page.goto(firstUrl);
@@ -233,7 +258,7 @@ try {
   await batch.saveAs(batchZip);
   const ids = JSON.parse(execFileSync('python3', ['-c', 'import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); print(json.dumps([json.loads(z.read(k))["conversation"]["id"] for k in z.namelist() if k.endswith("messages.json")]))', batchZip]));
   assert.deepEqual(ids, ['studio-weekend', 'reading-room']);
-  console.log('Chromium extension: popup and panel, minimized and reopened a paused scan, media ZIP, SPA invalidation, persistent checkpoint, mobile layout, combined batch.');
+  console.log('Chromium extension: installed packaged build, popup and panel, paused scan, media ZIP, SPA invalidation, persisted checkpoint, mobile layout, combined batch.');
   // Attach the installed CLI to the same Chromium fixture through its public
   // scan command. Playwright continues intercepting the origin throughout.
   const installer = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -266,7 +291,15 @@ try {
   const resumedArchive = JSON.parse(await readFile(join(root, 'cli-resumed.json'), 'utf8'));
   assert.equal(resumedArchive.messages.length, 24);
   assert.equal(resumedArchive.scan.resumed, true);
-  console.log('Packaged CLI: live Chromium scan through CDP, attachment ZIP, validation, and resume after reload.');
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto(firstUrl + '?responsive');
+  const responsive = await runCli('scan', ...connection, '--no-new-stop', '2',
+    '--sleep', '.05', '--scroll-up-sleep', '.05', '--out', 'cli-responsive.json');
+  assert.equal(JSON.parse(responsive.stdout).messages, 24);
+  const responsiveArchive = JSON.parse(await readFile(join(root, 'cli-responsive.json'), 'utf8'));
+  assert.equal(responsiveArchive.conversation.id, 'studio-weekend');
+  assert.deepEqual(responsiveArchive.messages.map(message => message.text), resumedArchive.messages.map(message => message.text));
+  console.log('Packaged CLI: desktop and responsive Chromium scans through CDP, attachment ZIP, validation, and resume after reload.');
 
 } finally {
   await context?.close();

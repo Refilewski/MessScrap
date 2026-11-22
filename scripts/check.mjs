@@ -9,6 +9,7 @@ const [pkg, lock, manifest] = await Promise.all([
 ]);
 assert.match(pkg.version, /^\d+\.\d+\.\d+$/u);
 assert.equal(lock.version, pkg.version);
+assert.equal(lock.packages[''].version, pkg.version);
 assert.equal(manifest.version, pkg.version);
 assert.equal(SCHEMA_VERSION, 2);
 

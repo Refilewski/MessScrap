@@ -51,6 +51,7 @@ jobs:
           node scripts/verify-browser.mjs
           node tests/test_chromium_extension.mjs
           node tests/test_firefox_extension.mjs
+          node tests/test_mobile_capture.mjs
       - name: Upload verified packages
         uses: actions/upload-artifact@v4
         with:

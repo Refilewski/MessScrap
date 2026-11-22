@@ -267,6 +267,7 @@ function makePayload(history, conversation, coverage, scan, {checkpoint = false}
     }
   }
 
+  const {diagnostics, ...archivedScan} = scan;
   return {
     ...(checkpoint ? {checkpoint_version: 1} : {}),
     exported_at: new Date().toISOString(),
@@ -276,7 +277,7 @@ function makePayload(history, conversation, coverage, scan, {checkpoint = false}
     partial: scan.status !== 'completed',
     interrupted: scan.status === 'cancelled',
     coverage: {...coverage},
-    scan: {...scan, conversation: undefined},
+    scan: {...archivedScan, conversation: undefined},
     count: items.length,
     items,
   };
@@ -350,14 +351,30 @@ function scanDelay(milliseconds, signal) {
   });
 }
 
-function confirmedBoundary(root, direction) {
+function confirmedBoundary(pane, root, direction) {
   const edge = direction < 0 ? 'start' : 'end';
   const attributes = direction < 0
     ? '[data-has-more-before="false"], [data-history-start="true"]'
     : '[data-has-more-after="false"], [data-history-end="true"]';
-  const sentinel = root.querySelector('[data-history-boundary="' + edge + '"]');
-  return root.matches(attributes) || Boolean(root.querySelector(attributes))
-    || Boolean(sentinel?.getClientRects().length && !sentinel.closest('[hidden], [aria-hidden="true"]'));
+  const sentinel = [...pane.querySelectorAll('[data-history-boundary="' + edge + '"], ' + attributes)]
+    .some(node => !node.closest(captureExcluded) && captureRendered(node));
+  const dedicatedScrollport = root !== document.scrollingElement && !root.matches(captureSurface);
+  return pane.matches(attributes) || (dedicatedScrollport && root.matches(attributes)) || sentinel;
+}
+
+function captureVerificationReason({status, reasonCode}) {
+  switch (status) {
+    case 'unsupported_url': return 'Open a supported Messenger conversation URL.';
+    case 'unsupported_functionality': return 'The browser could not inspect the message list.';
+    case 'loading': return 'Wait for Messenger to finish loading the conversation.';
+    case 'navigating': return 'Wait for Messenger to open the selected conversation.';
+    case 'container_missing': return 'No supported message list was found. Open the conversation with its messages visible.';
+    case 'rows_missing': return 'No rendered message rows were found. Check that the conversation has messages and its history is unlocked.';
+    case 'identity_conflict': return 'Conflicting conversation evidence was found. Wait for the active list to finish updating, then retry.';
+    default: return reasonCode === 'reused_pane'
+      ? 'Messenger reused a message list and did not identify which conversation owns its current rows. Reload the active conversation if retrying does not help.'
+      : 'The visible message list could not be linked to the active conversation. Reopen the conversation and try again.';
+  }
 }
 
 async function collectChat(sourceUrl, onProgress, signal, options = {}) {
@@ -381,6 +398,7 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
   let status = 'initializing';
   let reason = 'Waiting for the active conversation message list.';
   let error = null;
+  let diagnostics = null;
   let phase = null;
   let round = 0;
   const overlapTargets = new Set(options.overlapIds || []);
@@ -391,7 +409,7 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
   function progress() {
     const elapsedMs = now() - started;
     return {
-      status, reason, count: history.size, attachments: history.attachments,
+      status, reason, diagnostics, count: history.size, attachments: history.attachments,
       earliest: history.earliest === null ? null : new Date(history.earliest).toISOString(),
       latest: history.latest === null ? null : new Date(history.latest).toISOString(),
       elapsedMs, messagesPerSecond: elapsedMs ? Math.max(0, history.size - (history.resumed ? resumeRecords.length : 0)) * 1000 / elapsedMs : 0,
@@ -401,19 +419,32 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
     };
   }
   const publish = () => onProgress(history.size, phase, progress());
+  const changed = message => {
+    const failure = new Error(message || 'Conversation changed. Start a new scan in the active conversation.');
+    failure.name = 'ConversationChanged';
+    throw failure;
+  };
   const ensureRoute = () => {
-    if (!expectedId || guard.refresh() !== startGeneration || threadId(location.href) !== expectedId) {
-      const changed = new Error('Conversation changed. Start a new scan in the active conversation.');
-      changed.name = 'ConversationChanged';
-      throw changed;
+    if (guard.refresh() !== startGeneration || threadId(location.href) !== expectedId) changed();
+  };
+  const inspect = () => {
+    const inspected = guard.inspect();
+    diagnostics = inspected.diagnostics;
+    ensureRoute();
+    return inspected;
+  };
+  const ensureBinding = () => {
+    const inspected = inspect();
+    if (!inspected.verified || inspected.id !== conversation.id) {
+      changed('Conversation verification was lost. ' + captureVerificationReason(diagnostics));
     }
   };
   async function saveCheckpoint(force = false) {
     if (verifyCheckpoint || !options.checkpoint || !history.size || (!force && now() - savedAt < (options.checkpointInterval ?? 30000))) return;
-    ensureRoute();
+    ensureBinding();
     await options.checkpoint(makePayload(history, conversation, coverage, progress(), {checkpoint: true}));
     savedAt = now();
-    ensureRoute();
+    ensureBinding();
   }
   async function waitWhilePaused() {
     while (!signal.aborted && options.isPaused?.()) {
@@ -435,13 +466,18 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
     const deadline = now() + (options.initializeTimeout ?? 10000);
     while (!signal.aborted) {
       ensureRoute();
-      const inspected = guard.inspect();
-      ensureRoute();
+      const inspected = inspect();
       if (inspected.ready && inspected.id === expectedId) {
         conversation = inspected;
         break;
       }
-      if (now() >= deadline) throw new Error('Could not verify the active message list. Open or reload the conversation and unlock its history.');
+      reason = captureVerificationReason(diagnostics);
+      if (['unsupported_url', 'unsupported_functionality'].includes(diagnostics.status)) throw new Error(reason);
+      if (now() >= deadline) {
+        diagnostics = {...diagnostics, timedOut: true};
+        throw new Error('Conversation verification timed out. ' + reason);
+      }
+      publish();
       await scanDelay(150, signal);
     }
     if (!signal.aborted) {
@@ -463,11 +499,14 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
         await waitWhilePaused();
         if (signal.aborted) break;
         ensureRoute();
-        const inspected = guard.inspect();
-        ensureRoute();
+        const inspected = inspect();
+        const waiting = ['loading', 'rows_missing', 'container_missing'].includes(diagnostics.status);
+        if (!inspected.verified && !waiting) {
+          changed('Conversation verification was lost. ' + captureVerificationReason(diagnostics));
+        }
         const root = inspected.ready ? inspected.root : null;
-        const state = root ? scrollMessages(root, direction, false) : null;
-        const result = root ? readMessages(root, inspected.pane, Boolean(inlineMedia)) : null;
+        const state = root ? scrollMessages(root, direction, false, inspected.pane) : null;
+        const result = root ? readMessages(root, inspected.pane, Boolean(inlineMedia), inspected.rows) : null;
         ensureRoute();
         const records = (result?.records || []).filter(record => record.text || record.source_message_id
           || record.attachments?.length || record.message_type === 'system' || record.message_type === 'event');
@@ -499,7 +538,7 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
           }
           previousEdge = edge;
           if (stable >= stableRounds) {
-            coverage[phase] = confirmedBoundary(inspected.pane, direction) || confirmedBoundary(root, direction)
+            coverage[phase] = confirmedBoundary(inspected.pane, root, direction)
               ? 'boundary_confirmed' : 'edge_stable';
             break;
           }
@@ -511,15 +550,16 @@ async function collectChat(sourceUrl, onProgress, signal, options = {}) {
             coverage.older = 'incremental_overlap';
             break;
           }
-          if (round < phaseLimit && !state.loading) scrollMessages(root, direction, true);
+          if (round < phaseLimit && !state.loading) scrollMessages(root, direction, true, inspected.pane);
         }
         publish();
-        await saveCheckpoint();
+        if (inspected.verified) await saveCheckpoint();
         if (round < phaseLimit) await scanDelay(pause(direction), signal);
       }
       if (coverage[phase] === 'in_progress') coverage[phase] = signal.aborted ? 'interrupted' : 'round_limit';
     }
     ensureRoute();
+    if (history.size) ensureBinding();
     status = signal.aborted ? 'cancelled'
       : !history.size ? 'failed'
       : !history.gaps && !history.uncertain && coverage.older === 'boundary_confirmed' && coverage.newer === 'boundary_confirmed'

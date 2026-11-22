@@ -1,12 +1,55 @@
 import argparse
 import json
 import subprocess
+from html.parser import HTMLParser
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "extension"
 DOM = ROOT / "src" / "dom"
+REQUIRED_FILES = {"manifest.json", "popup.html", "popup.css", "popup.js", "content.js", "storage.js"}
+
+
+class PopupResources(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.paths = set()
+
+    def handle_starttag(self, tag, attrs):
+        attribute = {"script": "src", "link": "href", "img": "src"}.get(tag)
+        path = dict(attrs).get(attribute)
+        if path:
+            self.paths.add(path)
+
+
+def validate_extension(files, browser: str, version: str):
+    missing = REQUIRED_FILES - files.keys()
+    if missing:
+        raise ValueError(f"{browser} extension is missing: {', '.join(sorted(missing))}")
+    manifest = json.loads(files["manifest.json"])
+    if manifest.get("manifest_version") != 3 or manifest.get("version") != version:
+        raise ValueError(f"{browser} extension requires Manifest V3 and version {version}.")
+    if sorted(manifest.get("permissions", [])) != ["activeTab", "scripting", "storage"] or manifest.get("host_permissions"):
+        raise ValueError(f"{browser} extension permissions do not match the active-tab workflow.")
+
+    background = manifest.get("background", {})
+    settings = manifest.get("browser_specific_settings", {})
+    if browser == "chromium":
+        if background != {"service_worker": "storage.js"} or "browser_specific_settings" in manifest:
+            raise ValueError("Chromium requires a service worker and excludes Gecko settings.")
+    elif background != {"scripts": ["storage.js"]} or not settings.get("gecko") or not settings.get("gecko_android"):
+        raise ValueError("Firefox requires background scripts and Gecko desktop and Android settings.")
+
+    popup = manifest.get("action", {}).get("default_popup")
+    if popup != "popup.html":
+        raise ValueError(f"{browser} extension action must reference the packaged popup.html.")
+    resources = PopupResources()
+    html = files[popup]
+    resources.feed(html.decode("utf-8") if isinstance(html, bytes) else html)
+    missing = resources.paths - files.keys()
+    if missing or not {"popup.js", "popup.css"} <= resources.paths:
+        raise ValueError(f"{browser} extension popup must reference packaged assets, including popup.js and popup.css.")
 
 
 def read(path: Path) -> str:
@@ -56,8 +99,9 @@ def build(output: Path, target: str = "all") -> tuple[Path, ...]:
     files["content.js"] = compile_content()
     firefox_manifest = json.loads(read(SOURCE / "manifest.json"))
     package_version = json.loads(read(ROOT / "package.json"))["version"]
-    if firefox_manifest["version"] != package_version:
-        raise ValueError("Extension and CLI package versions must match.")
+    package_lock = json.loads(read(ROOT / "package-lock.json"))
+    if package_version != package_lock.get("version") or package_version != package_lock.get("packages", {}).get("", {}).get("version"):
+        raise ValueError("CLI package and lockfile versions must match.")
     chromium_manifest = {
         key: value for key, value in firefox_manifest.items()
         if key != "browser_specific_settings"
@@ -71,6 +115,7 @@ def build(output: Path, target: str = "all") -> tuple[Path, ...]:
             **files,
             "manifest.json": json.dumps(manifests[browser], indent=2) + "\n",
         }
+        validate_extension(package_files, browser, package_version)
         directory = output / f"{browser}-extension"
         directory.mkdir(parents=True, exist_ok=True)
         for name, contents in package_files.items():

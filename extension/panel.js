@@ -13,6 +13,59 @@ const mimeTypes = {
 };
 const formatNumber = new Intl.NumberFormat();
 const formatTime = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+const conflictReasons = {
+  multiple_panes: 'More than one visible message list could be active. Open the intended conversation on its own and retry.',
+  conflicting_bindings: 'The visible message list and the active conversation show conflicting identifiers. Wait for Messenger to finish opening the conversation and retry.',
+  stale_rows: 'Rows from the previous conversation are still visible. Wait for the active conversation’s messages, then retry.',
+};
+
+function verificationReason(diagnostics = {}) {
+  if (diagnostics.status === 'verified') return 'The message list is linked to the active conversation.';
+  if (diagnostics.status === 'unsupported_url') return 'Open a specific Messenger conversation in the browser.';
+  if (Object.hasOwn(conflictReasons, diagnostics.reasonCode)) return conflictReasons[diagnostics.reasonCode];
+  return captureVerificationReason(diagnostics);
+}
+
+function browserDescription() {
+  // Report only known browser/OS labels. Desktop-site mode can mask both.
+  const reported = navigator.userAgent || '';
+  const ios = /\b(?:iPhone|iPad|iPod)\b/i.test(reported)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const platform = ios ? 'iOS/iPadOS' : /\bAndroid\b/i.test(reported) ? 'Android'
+    : /\bWindows\b/i.test(reported) ? 'Windows' : /\bMacintosh\b/i.test(reported) ? 'macOS'
+      : /\bLinux\b/i.test(reported) ? 'Linux' : 'Unknown platform';
+  const browser = /\bOrion\b/i.test(reported) ? 'Orion' : /\b(?:Firefox|FxiOS)\b/i.test(reported) ? 'Firefox'
+    : /\b(?:Chrome|Chromium|CriOS)\b/i.test(reported) ? 'Chromium family'
+      : /\bAppleWebKit\b/i.test(reported) ? 'WebKit' : 'Unknown browser';
+  return `${browser} / ${platform}`;
+}
+
+function diagnosticsReport(diagnostics, storageState, reportedBrowser) {
+  const availability = state => state ? 'Available' : 'Unavailable';
+  const viewport = globalThis.visualViewport;
+  const width = Math.round(viewport ? viewport.width * viewport.scale : innerWidth);
+  const height = Math.round(viewport ? viewport.height * viewport.scale : innerHeight);
+  const visibleRows = Number.isSafeInteger(diagnostics?.visibleRows) && diagnostics.visibleRows >= 0
+    ? diagnostics.visibleRows : 0;
+  const identity = {verified: 'Verified', conflicting: 'Conflicting evidence', unverified: 'Unverified'};
+  const strategies = {semantic: 'Semantic message list', scroll: 'Scrolling message list',
+    region: 'Conversation region', bound: 'Thread-bound message list'};
+  return [
+    'MessScrap diagnostics',
+    `Reported browser: ${reportedBrowser}`,
+    `Layout viewport: ${innerWidth} × ${innerHeight} CSS px`,
+    `Scaled visual viewport: ${width} × ${height} CSS px`,
+    `URL: ${diagnostics?.urlRecognized ? 'Recognized' : 'Unsupported'}`,
+    `Thread identifier: ${availability(diagnostics?.threadIdentifierAvailable)}`,
+    `Message container: ${diagnostics?.containerFound ? 'Found' : 'Not found'}`,
+    `Container strategy: ${Object.hasOwn(strategies, diagnostics?.strategy) ? strategies[diagnostics.strategy] : 'None'}`,
+    `Visible message rows: ${visibleRows}`,
+    `Conversation identity: ${Object.hasOwn(identity, diagnostics?.identity) ? identity[diagnostics.identity] : identity.unverified}`,
+    `Local extension storage: ${storageState}`,
+    `Verification timeout: ${diagnostics?.timedOut ? 'Reached' : 'Not reached'}`,
+    `Reason: ${verificationReason(diagnostics)}`,
+  ].join('\n');
+}
 
 function icon(name, classes = '') {
   return `<svg aria-hidden="true" class="${classes}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icons[name]}</svg>`;
@@ -69,7 +122,7 @@ async function waitForConversation(entry, guard, signal) {
     if (snapshot.id === entry.id && snapshot.ready) return snapshot;
     await pauseFor(250, signal);
   }
-  throw new Error('Could not verify the selected message list.');
+  throw new Error(`Verification timed out. ${verificationReason(guard.inspect().diagnostics)}`);
 }
 
 function installPanel() {
@@ -85,9 +138,15 @@ function installPanel() {
   const host = document.createElement('div');
   host.id = panelId;
   const root = host.attachShadow({mode: 'open'});
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(panelStyle);
-  root.adoptedStyleSheets = [sheet];
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(panelStyle);
+    root.adoptedStyleSheets = [sheet];
+  } catch {
+    const style = document.createElement('style');
+    style.textContent = panelStyle;
+    root.append(style);
+  }
   const section = document.createElement('section');
   section.setAttribute('aria-label', 'MessScrap conversation export');
   section.dataset.theme = 'system';
@@ -104,7 +163,7 @@ function installPanel() {
       <div class="line">
         <div class="avatar" id="avatar" aria-hidden="true">${icon('users')}</div>
         <div class="person"><h2 id="conversation">Messenger conversation</h2><p class="muted" id="participants">Verifying message list…</p></div>
-        <span class="status" id="status" data-state="idle">Ready</span>
+        <span class="status" id="status" data-state="idle" role="status">Ready</span>
       </div>
       <dl class="metrics">
         <div><dt>Messages</dt><dd id="count">0</dd></div>
@@ -114,6 +173,7 @@ function installPanel() {
         <div class="range"><dt>Captured range</dt><dd id="range">—</dd></div>
       </dl>
       <p id="resumed" class="muted" hidden>Resumed from local checkpoint</p>
+      <p id="verification-hint" class="muted" role="status" hidden></p>
       <p id="notice" class="muted" role="status" hidden></p>
       <p id="error" class="muted" role="alert" hidden></p>
       <progress id="download-progress" class="progress" aria-label="Attachment download progress" hidden></progress>
@@ -152,6 +212,14 @@ function installPanel() {
           </div>
         </details>
       </div>
+      <details id="diagnostics">
+        <summary>Diagnostics</summary>
+        <div class="settings">
+          <textarea id="diagnostic-report" aria-label="Sanitized diagnostics report" rows="8" readonly spellcheck="false"></textarea>
+          <div class="actions"><button type="button" id="copy-diagnostics">Copy diagnostics</button></div>
+          <p id="diagnostics-feedback" class="muted" role="status" hidden></p>
+        </div>
+      </details>
       <details id="batch">
         <summary>Batch export</summary>
         <div class="settings">
@@ -173,6 +241,24 @@ function installPanel() {
   const onClick = (node, action) => node.addEventListener('click', event => {
     if (event.isTrusted && host.isConnected) action();
   });
+  const viewport = globalThis.visualViewport;
+  function positionPanel() {
+    if (!viewport?.width || !viewport.height || !viewport.scale) return;
+    // Desktop-site pages can fit a desktop layout into a mobile viewport.
+    // Compensate for shrinking while retaining the user's pinch-to-zoom.
+    const scale = Math.min(1, viewport.scale);
+    const {clientWidth, clientHeight} = document.documentElement;
+    const right = Math.max(0, clientWidth - viewport.width - viewport.offsetLeft);
+    const bottom = Math.max(0, clientHeight - viewport.height - viewport.offsetTop);
+    host.style.setProperty('--panel-scale', String(1 / scale));
+    host.style.setProperty('--viewport-width', `${viewport.width * scale}px`);
+    host.style.setProperty('--viewport-height', `${viewport.height * scale}px`);
+    host.style.setProperty('--viewport-right', `${right}px`);
+    host.style.setProperty('--viewport-bottom', `${bottom}px`);
+  }
+  viewport?.addEventListener('resize', positionPanel);
+  viewport?.addEventListener('scroll', positionPanel);
+  positionPanel();
   const guard = new ConversationGuard();
   let prefs = {...defaults};
   const preferenceEdits = {};
@@ -185,9 +271,14 @@ function installPanel() {
   let checkpoint;
   let queue = [];
   let progress;
+  let storageState = 'Checking';
   let avatarSource;
+  const reportedBrowser = browserDescription();
 
   const request = async (operation, id, payload) => {
+    if (typeof api?.runtime?.sendMessage !== 'function') {
+      throw new Error('Extension storage messaging is unavailable in this browser.');
+    }
     const reply = await api.runtime.sendMessage({scope: 'messscrap', operation, id, payload});
     if (!reply || reply.error) throw new Error(reply?.error || 'The extension could not access local storage.');
     return reply.value;
@@ -199,14 +290,27 @@ function installPanel() {
   const notice = value => message(ui.notice, value);
   const error = value => message(ui.error, value);
   const same = (a, b) => a?.id === b?.id && a?.generation === b?.generation;
+  const renderDiagnostics = () => {
+    if (!ui.diagnostics.open) return;
+    const diagnostics = progress?.status === 'failed' && progress.diagnostics ? progress.diagnostics : current.diagnostics;
+    const report = diagnosticsReport(diagnostics, storageState, reportedBrowser);
+    if (ui['diagnostic-report'].value !== report) ui['diagnostic-report'].value = report;
+  };
   const render = () => {
-    const phase = progress?.status?.toLowerCase() || (current.ready ? 'ready' : 'initializing');
-    ui.status.textContent = phase[0].toUpperCase() + phase.slice(1);
+    const verification = current.diagnostics?.status;
+    const idlePhase = current.ready ? 'ready' : !current.id ? 'unavailable'
+      : ['loading', 'navigating'].includes(verification) ? 'initializing' : 'unverified';
+    const phase = progress?.status?.toLowerCase() || idlePhase;
+    const status = phase[0].toUpperCase() + phase.slice(1);
+    if (ui.status.textContent !== status) ui.status.textContent = status;
     ui.status.dataset.state = phase;
     ui.conversation.textContent = current.name || 'Messenger conversation';
     const people = progress?.conversation?.id === current.id ? progress.conversation.participants : current.participants;
     const participants = (people ?? []).map(person => typeof person === 'string' ? person : person.name).filter(Boolean);
-    ui.participants.textContent = participants.join(', ') || (current.ready ? 'Participants unavailable' : 'Verifying message list…');
+    ui.participants.textContent = participants.join(', ') || (current.ready ? 'Participants unavailable'
+      : phase === 'initializing' ? 'Verifying message list…' : 'Message list unverified');
+    message(ui['verification-hint'], !task && !progress && !current.ready && ui.notice.hidden
+      ? verificationReason(current.diagnostics) : '');
     if (avatarSource !== current.avatar) {
       avatarSource = current.avatar;
       ui.avatar.innerHTML = icon('users');
@@ -229,7 +333,8 @@ function installPanel() {
       ? `${renderTime(progress.earliest)} – ${renderTime(progress.latest)}` : '—';
     ui.resumed.hidden = !progress?.resumed;
     ui.start.disabled = Boolean(task || !current.id);
-    ui.start.querySelector('span').textContent = imported ? 'Scan update' : 'Start scan';
+    ui.start.querySelector('span').textContent = phase === 'failed' ? (imported ? 'Retry update' : 'Retry scan')
+      : imported ? 'Scan update' : 'Start scan';
     ui['scroll-top'].disabled = Boolean(task || !current.id || imported);
     ui.pause.hidden = !task || task.kind !== 'scan';
     if (!ui.pause.hidden) {
@@ -253,7 +358,22 @@ function installPanel() {
     ui.import.disabled = Boolean(task);
     ui['media-folder'].disabled = Boolean(task);
     ui['clear-import'].disabled = Boolean(task);
+    renderDiagnostics();
   };
+
+  ui.diagnostics.addEventListener('toggle', renderDiagnostics);
+  onClick(ui['copy-diagnostics'], async () => {
+    renderDiagnostics();
+    const input = ui['diagnostic-report'];
+    try {
+      await navigator.clipboard.writeText(input.value);
+      message(ui['diagnostics-feedback'], 'Sanitized diagnostics copied.');
+    } catch {
+      input.focus();
+      input.select();
+      message(ui['diagnostics-feedback'], 'Copy the selected diagnostics using your browser’s copy command.');
+    }
+  });
 
   const applyPreferences = () => {
     section.dataset.theme = prefs.theme;
@@ -262,9 +382,14 @@ function installPanel() {
     render();
   };
   request('preferences').then(value => {
+    storageState = 'Available';
     prefs = {...defaults, ...value, ...preferenceEdits};
     applyPreferences();
-  }).catch(err => error(err.message));
+  }).catch(() => {
+    storageState = 'Unavailable';
+    error('Extension storage is unavailable. Preferences and checkpoints may not be saved.');
+    render();
+  });
   for (const key of Object.keys(defaults)) {
     ui[key].addEventListener('change', event => {
       if (!event.isTrusted) return;
@@ -384,7 +509,7 @@ function installPanel() {
         task.controller.abort(new DOMException('Conversation changed.', 'AbortError'));
       }
       if (imported && imported.conversation.id !== next.id) clearImported();
-      if (task?.kind !== 'batch') notice('Conversation changed. Start a scan in the active conversation.');
+      if (task?.kind !== 'batch') notice(next.ready ? 'Conversation changed. Start a scan in the active conversation.' : '');
       error('');
       refreshCheckpoint(next);
     }
@@ -405,6 +530,8 @@ function installPanel() {
     clearInterval(timer);
     observer.disconnect();
     guard.dispose();
+    viewport?.removeEventListener('resize', positionPanel);
+    viewport?.removeEventListener('scroll', positionPanel);
     globalThis.removeEventListener('pagehide', cleanup);
     host.remove();
   }
@@ -438,7 +565,8 @@ function installPanel() {
     const result = await collectChat(snapshot.sourceUrl, (count, phase, metrics) => {
       if (!host.isConnected || guard.refresh() !== snapshot.generation) return;
       progress = {...metrics, count};
-      if (metrics?.reason) notice(metrics.reason);
+      if (metrics?.reason && metrics.status !== 'failed') notice(metrics.reason);
+      else if (metrics?.status === 'failed') notice('');
       render();
     }, signal, {
       guard, limit: prefs.limit, directions, resume, overlapIds, overlapBefore, captureInlineMedia: prefs.media,
@@ -458,7 +586,13 @@ function installPanel() {
         }
         : undefined,
     });
-    if (!guard.matches(snapshot)) throw new Error('Conversation changed or its message list could no longer be verified.');
+    if (guard.refresh() !== snapshot.generation) {
+      throw new Error('Conversation changed. Start a new scan in the active conversation.');
+    }
+    // Keep the collector's verification failure when there is no data to publish.
+    if (result.payload?.count && !guard.matches(snapshot)) {
+      throw new Error(verificationReason(guard.inspect().diagnostics));
+    }
     return result;
   }
 
@@ -472,6 +606,7 @@ function installPanel() {
     const previous = saved;
     saved = null;
     progress = {status: 'initializing'};
+    message(ui['diagnostics-feedback'], '');
     notice(options.resume ? 'Restoring local checkpoint…' : '');
     error('');
     render();
@@ -482,7 +617,11 @@ function installPanel() {
       const overlapIds = base?.messages.filter(item => item.nativeId).slice(-8).map(item => item.nativeId);
       const overlapBefore = base && !overlapIds.length ? base.messages.findLast(item => item.timestamp)?.timestamp : undefined;
       const result = await capture(snapshot, signal, {resume, directions: options.directions, overlapIds, overlapBefore});
-      if (result.error) error(typeof result.error === 'string' ? result.error : result.error.message);
+      if (result.error) {
+        const diagnostics = progress?.diagnostics;
+        error(diagnostics?.timedOut ? `Verification timed out. ${verificationReason(diagnostics)}`
+          : typeof result.error === 'string' ? result.error : result.error.message);
+      }
       if (result.payload?.count) {
         let archive = archiveFromCapture(result.payload);
         if (base) {
@@ -632,7 +771,7 @@ function installPanel() {
           renderQueue();
           const result = await capture(snapshot, signal);
           signal.throwIfAborted();
-          if (!result.payload?.count) throw new Error('No messages were captured.');
+          if (!result.payload?.count) throw new Error(result.error?.message || result.error || 'No messages were captured.');
           const archive = archiveFromCapture(result.payload);
           const options = zipOptions(signal, {inline: inlineSources(result)});
           if (combined) {

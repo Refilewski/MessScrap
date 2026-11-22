@@ -13,9 +13,9 @@ const records = Array.from({length: 11}, (_, index) => ({
   timestamp: new Date(Date.UTC(2025, 0, 1) + index * 60000).toISOString(),
 }));
 
-function fixtureRow(record) {
+function fixtureRow(record, pane) {
   return {
-    parentElement: {closest: () => null},
+    parentElement: pane,
     closest: () => null,
     getClientRects: () => [1],
     getAttribute: key => ({
@@ -47,17 +47,19 @@ function harness({confirmed = false, documentUrl = sourceUrl, capture = false} =
       return {'data-thread-id': paneId, 'data-conversation-name': title}[key];
     },
     querySelector(selector) {
-      return selector.includes('data-message-id') && visible.length ? fixtureRow(visible[0]) : null;
+      return selector.includes('data-message-id') && visible.length ? fixtureRow(visible[0], root) : null;
     },
     querySelectorAll(selector) {
-      return selector.includes('data-message-id') ? visible.slice(position, position + 3).map(fixtureRow) : [];
+      return selector.includes('data-message-id') ? visible.slice(position, position + 3).map(record => fixtureRow(record, root)) : [];
     },
   };
   const context = {
     URL, AbortController, setTimeout, clearTimeout, location, navigation,
-    document: {querySelectorAll: () => []},
+    document: {readyState: 'complete', querySelector: () => null, querySelectorAll: () => []},
     performance: {getEntriesByType: () => [{name: documentUrl}]},
-    findContainer: () => root,
+    findContainer: () => ({
+      root, pane: root, rows: visible.slice(position, position + 3).map(record => fixtureRow(record, root)), strategy: 'semantic',
+    }),
     readMessages: () => ({records: ++reads > emptyAfter ? [] : visible.slice(position, position + 3)}),
     scrollMessages: (_root, direction, move) => {
       directions.push(direction);
@@ -89,6 +91,15 @@ function harness({confirmed = false, documentUrl = sourceUrl, capture = false} =
 
 const quick = {pause: () => 0, stableRounds: 1, limit: 30, initializeTimeout: 400};
 const ids = result => Array.from(result.payload.items, item => item.source_message_id);
+
+// Mobile extension contexts may expose no Navigation Timing entry. A known
+// route and a matching pane alone still cannot verify the rows.
+{
+  const {guard, pane} = harness({documentUrl: null});
+  assert.equal(guard.inspect().diagnostics.status, 'identity_unproven');
+  pane('fixture', records.map(item => ({...item, thread: 'fixture'})));
+  assert.equal(guard.inspect().ready, true);
+}
 
 {
   const {collectChat, guard, directions} = harness();
@@ -132,7 +143,7 @@ for (const confirmed of [false, true]) {
   pane('next', records.map(item => ({...item})), 'Lin');
   assert.equal(guard.matches(initial), false);
   assert.equal(guard.inspect().ready, false);
-  const after = [{source_message_id: 'new-id', text: 'New conversation', author: 'Lin'}];
+  const after = [{source_message_id: 'new-id', text: 'New conversation', author: 'Lin', thread: 'next'}];
   const render = setTimeout(() => pane('next', after, 'Lin'), 30);
   const result = await collectChat(nextUrl, () => {}, new AbortController().signal,
     {...quick, guard, directions: [-1]});
@@ -140,6 +151,13 @@ for (const confirmed of [false, true]) {
   assert.equal(result.error, null);
   assert.deepEqual(ids(result), ['new-id']);
   assert.equal(result.payload.conversation.name, 'Lin');
+}
+
+{
+  const {guard, route} = harness();
+  assert.equal(guard.inspect().ready, true);
+  route(nextUrl, false);
+  assert.equal(guard.inspect().diagnostics.status, 'navigating');
 }
 
 // Fresh injection after an unobserved SPA change requires row-level proof or a reload.

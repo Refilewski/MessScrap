@@ -244,8 +244,10 @@ async function browserReadMedia(attachment, capture, load, conversationId, gener
     reader.onerror = reject;
     reader.readAsDataURL(new Blob([file.bytes]));
   });
-  return { data, mimeType: file.mimeType, filename: file.filename };
-
+  const end = capture.inspect();
+  return end.ready && end.id === conversationId && end.generation === generation
+    ? { data, mimeType: file.mimeType, filename: file.filename }
+    : null;
 }
 
 export function browserMediaLoader(connection, identity) {
