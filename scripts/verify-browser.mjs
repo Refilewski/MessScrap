@@ -14,7 +14,7 @@ const screenshotDir = join(root, 'docs', 'screenshots');
 const archiveDir = await mkdtemp(join(tmpdir(), 'messscrap-offline-'));
 const browser = await chromium.launch({
   headless: true,
-  executablePath: process.env.MESSSCRAP_CHROMIUM || process.env.CHROMIUM_PATH,
+  executablePath: process.env.MESSSCRAP_CHROMIUM || process.env.CHROMIUM_PATH || chromium.executablePath(),
 });
 const errors = [];
 const requests = [];
