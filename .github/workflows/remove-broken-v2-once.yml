@@ -1,0 +1,29 @@
+name: Remove broken MessScrap v2.0.0 release (one time)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/remove-broken-v2-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remove-broken-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove v2.0.0 GitHub Release but keep the git tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view v2.0.0 --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release delete v2.0.0 --repo "$GH_REPO" --yes
+          fi
+          if gh release view v2.0.0 --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "::error::The v2.0.0 release still exists."
+            exit 1
+          fi
+          echo "Release v2.0.0 removed; git tag retained."
