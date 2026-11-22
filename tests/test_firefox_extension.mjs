@@ -7,7 +7,8 @@ import {setTimeout as delay} from 'node:timers/promises';
 
 const executable = process.env.MESSSCRAP_FIREFOX;
 assert(executable, 'Set MESSSCRAP_FIREFOX to the Firefox executable.');
-const extension = resolve(process.argv[2] || 'bin/firefox-extension');
+const {version} = JSON.parse(await readFile('package.json', 'utf8'));
+const extension = resolve(process.argv[2] || `bin/messscrap-firefox-${version}.zip`);
 const temporaryRoot = await realpath(tmpdir());
 const profile = await mkdtemp(join(temporaryRoot, 'messscrap-firefox-'));
 const fixtureUrl = 'https://www.facebook.com/messages/e2ee/t/messscrap-test';
@@ -71,7 +72,7 @@ function send(method, params = {}) {
       pending.delete(id);
       reject(new Error('No Firefox response for ' + method));
     }, 12000);
-    pending.set(id, {resolve, reject, timer});
+    pending.set(id, {resolve, reject, timer, method});
     socket.send(JSON.stringify({id, method, params}));
   });
 }
@@ -114,7 +115,7 @@ try {
     if (!request) return;
     pending.delete(message.id);
     clearTimeout(request.timer);
-    if (message.type === 'error') request.reject(new Error(message.error + ': ' + message.message));
+    if (message.type === 'error') request.reject(new Error(request.method + ': ' + message.error + ': ' + message.message));
     else request.resolve(message.result);
   });
 
@@ -123,13 +124,14 @@ try {
   assert.equal(installed.extension, 'messscrap@refil.cc');
   const {contexts} = await send('browsingContext.getTree');
   const context = contexts[0].context;
-  await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 760}});
   await send('session.subscribe', {events: ['network.beforeRequestSent']});
   await send('network.addIntercept', {
     phases: ['beforeRequestSent'],
     urlPatterns: [{type: 'string', pattern: fixtureUrl}],
   });
   await send('browsingContext.navigate', {context, url: fixtureUrl, wait: 'complete'});
+  // Firefox may start on a privileged about: page where viewport overrides are unavailable.
+  await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 760}});
 
   async function evaluate(expression, target = {context}) {
     const result = await send('script.evaluate', {expression, target, awaitPromise: true});

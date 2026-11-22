@@ -34,9 +34,14 @@
   }
 
   function start(options = {}) {
-    if (!clear()) throw new Error('A scan is already running.');
+    if (controller) throw new Error('A scan is already running.');
     const current = guard.inspect();
     if (!current.sourceUrl) throw new Error('Open a specific Messenger conversation.');
+    const expected = options.expectedIdentity;
+    if (expected && (current.id !== expected.id || current.generation !== expected.generation)) {
+      throw new Error('The conversation changed before capture.');
+    }
+    clear();
     identity = current;
     controller = new AbortController();
     const signal = controller.signal;
@@ -66,8 +71,9 @@
       // A temporarily empty pane can occur while loading older history.
       if (!controller) invalidate();
       else if (identity && guard.refresh() !== identity.generation) checkpoint = null;
+      const verifiedCheckpoint = detail && checkpoint && guard.matches(identity) ? checkpoint : null;
       return {running: Boolean(controller), resultReady: Boolean(result), progress, checkpointRevision,
-        result: detail ? result : null, checkpoint: detail ? checkpoint : null};
+        result: detail ? result : null, checkpoint: verifiedCheckpoint};
     },
     pause() { paused = true; },
     resume() { paused = false; },

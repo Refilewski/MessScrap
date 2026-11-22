@@ -8,7 +8,7 @@
 <p align="center">Save Messenger conversations to files you can browse, search, and keep offline.</p>
 
 <p align="center">
-  <a href="https://github.com/Refilewski/MessScrap/releases"><img alt="MessScrap 2.0.0" src="https://img.shields.io/badge/MessScrap-2.0.0-2563EB?logo=github"></a>
+  <a href="https://github.com/Refilewski/MessScrap/releases"><img alt="MessScrap 2.0.1" src="https://img.shields.io/badge/MessScrap-2.0.1-2563EB?logo=github"></a>
   <a href="https://github.com/Refilewski/MessScrap/actions"><img alt="Build and tests" src="https://github.com/Refilewski/MessScrap/actions/workflows/verify.yml/badge.svg"></a>
   <a href="#license"><img alt="License: private use, no redistribution" src="https://img.shields.io/badge/license-private%20use%20only-64748B"></a>
   <a href="#platforms"><img alt="Windows, macOS, and Linux" src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-64748B"></a>
@@ -25,7 +25,7 @@
   <a href="#license">License</a>
 </p>
 
-**Mobile:** Android (Firefox, experimental) · iOS (Orion, experimental). Both can open exported offline archives; live capture is not guaranteed on mobile. See [platforms](#platforms).
+**Mobile** · Android (Firefox, experimental) · iOS (Orion, experimental). Both can open exported offline archives. Live capture still needs real-device verification. [Browser compatibility and installation](docs/BROWSERS.md)
 
 MessScrap collects messages in a conversation you open and unlock in Messenger. Keep a compact transcript, build a self-contained archive with media, or use the terminal to search, validate, and update existing archives. Capture, processing, and storage run locally through your browser session and filesystem.
 
@@ -40,7 +40,7 @@ MessScrap collects messages in a conversation you open and unlock in Messenger. 
 
 | | Browser extension | CLI |
 | --- | --- | --- |
-| Runtime | Chrome and Brave on desktop, Firefox 140+ on desktop | Node.js on Windows, macOS, or Linux |
+| Runtime | Chrome, Brave, Chromium, and Firefox 140+ on desktop | Node.js on Windows, macOS, or Linux |
 | Live capture | Active Messenger tab | Local Chrome, Brave, Chromium, or Edge session |
 | Scan controls | In-page panel | Terminal status and keyboard controls |
 | Checkpoints | Browser-local storage | Local files |
@@ -49,31 +49,26 @@ MessScrap collects messages in a conversation you open and unlock in Messenger. 
 | Batch export | Select visible conversations in the panel | Select visible conversation IDs or provide existing archives |
 | Archive operations | Update a conversation from an existing JSON archive | Import, validate, search, statistics, and update |
 
-**Mobile live capture is experimental, not officially verified for all devices.** There is no native Android or iOS app and no mobile CLI. The offline archive viewer is designed for mobile browsers.
-
-<details>
-<summary>Android (Firefox) and iOS (Orion) installation notes</summary>
-
-Firefox 142+ on Android uses Mozilla's USB debugging workflow for development installation. Request Messenger's desktop site if the mobile page does not expose the message list. The Chromium build can be tried in Orion's Chrome-extension compatibility mode on iOS. Browser and mobile Messenger changes can affect capture, downloads, and checkpoint storage. [Firefox Android extension development](https://extensionworkshop.com/documentation/develop/developing-extensions-for-firefox-for-android/) · [Orion](https://browser.kagi.com/orion/)
-
-</details>
+Desktop Chromium and Firefox packages are exercised in automated browsers using synthetic conversations. Live capture still depends on what Messenger renders in your signed-in session. Android and iOS can use the offline archive viewer. Standard Chrome for Android cannot install this extension. [Browser compatibility and installation](docs/BROWSERS.md)
 
 ## Installation
 
-Download assets from GitHub Releases when a 2.0 package is available, or build this checkout with the commands in [Development](#development). The older `v0.2.x` assets use the original CLI and extension. [GitHub Releases](https://github.com/Refilewski/MessScrap/releases)
+Download a packaged version from GitHub Releases or build this checkout with the commands in [Development](#development). The older `v0.2.x` assets use the original CLI and extension. [GitHub Releases](https://github.com/Refilewski/MessScrap/releases)
 
 ### Browser extension
 
-1. Extract the Chromium or Firefox build to a folder.
-2. In Chrome or Brave, open the browser's extensions page, enable **Developer mode**, select **Load unpacked**, and choose the extracted folder.
-3. In Firefox, open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose the extracted `manifest.json`. Firefox requires Mozilla signing for persistent installation in standard release builds.
+1. Extract the Chromium or Firefox ZIP so that `manifest.json` is directly inside the extension folder.
+2. In desktop Chrome, Brave, or Chromium, open the browser's extensions page, enable **Developer mode**, select **Load unpacked**, and choose that folder.
+3. In desktop Firefox, open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose the extracted `manifest.json`. Firefox requires Mozilla signing for persistent installation in standard release builds.
+
+[Firefox Android installation](docs/BROWSERS.md#firefox-for-android) · [Orion iOS installation](docs/BROWSERS.md#orion-on-ios-and-ipados)
 
 ### CLI
 
 Install the versioned tarball with Node.js 22.11 or later.
 
 ```sh
-npm install -g ./messscrap-2.0.0.tgz
+npm install -g ./messscrap-2.0.1.tgz
 messscrap --version
 ```
 
@@ -98,7 +93,7 @@ Use **Scan settings** to save local checkpoints, adjust the round limit, or scan
 
 ```console
 $ messscrap --version
-2.0.0
+2.0.1
 $ messscrap scan --checkpoint --format zip --media --output ./archives
 $ messscrap validate ./archives/conversation.zip
 $ messscrap search ./archives/conversation.zip "weekend"
@@ -180,19 +175,22 @@ Archive files can contain private conversation text and media. Use synthetic dat
 - Media transfer limits each attachment to 64 MiB and the saved media in each conversation archive to 512 MiB. ZIP assembly uses memory while preparing the download.
 - Official Messenger JSON import depends on the export variant. Import separately split conversation files individually and review the resulting order and media paths.
 
-<details>
-<summary>Troubleshooting</summary>
+## Troubleshooting
 
 | Symptom | What to check |
 | --- | --- |
-| Panel is waiting for the conversation | Open a specific thread, wait for the message list and title to settle, or reload the thread directly. |
-| Scan found no messages | Confirm history is unlocked and visible in the browser. On mobile, try Messenger's desktop site. |
+| Unsupported conversation URL | Open a specific Messenger thread in the browser and start capture there. |
+| Message list missing, empty, or loading | Confirm the history is unlocked and messages have appeared, then retry in the panel. Desktop Site may help if Messenger shows an app prompt. Empty conversations have no messages to capture. |
+| Conversation identity unverified, conflicting, or navigation in progress | Keep the target thread open and let the title and history settle, then retry. If the message list still belongs to another thread, open the target thread directly. |
+| Verification timed out | Expand **Diagnostics** to see the last verification condition, then follow the guidance for that condition and retry. |
+| Browser feature unavailable or panel fails to open | Make the Messenger tab active, allow MessScrap to run on the site if prompted, and check the browser's installation and API limitations. [Browser compatibility](docs/BROWSERS.md) |
 | An attachment is unavailable | Check the manifest. Reopen the conversation and load the attachment before another capture. |
 | HTML opens but media is unavailable | Extract the complete ZIP and keep `media/` alongside `index.html`. |
 | CLI cannot connect | Close the isolated MessScrap browser and re-run the command, or check the documented browser path and debugging port. |
+| CLI cannot verify the conversation at startup | Read the failed condition and rendered row count. Let the selected conversation finish loading, then retry in the same browser profile. [CLI troubleshooting](docs/CLI.md#capture) |
 | Installed CLI reports an older version | Install the 2.0 tarball and check which `messscrap` executable your shell resolves. |
 
-</details>
+To report a verification failure, expand **Diagnostics** in the panel and select **Copy diagnostics**. If clipboard access is unavailable, select and copy the displayed report. It contains technical status and counts. Message text, participant names, conversation IDs and URLs, cookies, and access tokens are excluded. The report stays local until you choose to share it.
 
 ## Development
 

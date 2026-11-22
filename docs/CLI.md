@@ -2,7 +2,7 @@
 
 MessScrap 2.0 runs on Node.js 22.11 or later. Commands that read existing archives work offline. Live capture opens an isolated Chrome, Brave, Chromium, or Edge profile so you can sign in to Messenger yourself.
 
-Install the versioned tarball with `npm install -g ./messscrap-2.0.0.tgz`. Use `messscrap --version` to verify your installation and `messscrap <command> --help` for command-specific options.
+Install the versioned tarball with `npm install -g ./messscrap-2.0.1.tgz`. Use `messscrap --version` to verify your installation and `messscrap <command> --help` for command-specific options.
 
 ## Capture
 
@@ -34,6 +34,8 @@ Open and unlock the conversation in the isolated browser. The interactive termin
 A scan can write an archive with **Partial** coverage and exit with status `3`. Inspect the scan reason in the resulting JSON or ZIP manifest.
 
 The CLI looks for a browser on your local debugging port first. When it needs to open a browser, it uses its own profile directory by default. The browser keeps this profile for future scans so you can use the same signed-in session.
+
+If startup reports a verification failure, check the reason and rendered message count in the terminal. Wait for the conversation to finish opening, unlock its history if prompted, and retry the command. If the message list is still unverified after switching conversations, open the conversation URL directly in a tab in the same capture profile and retry. [Browser verification troubleshooting](BROWSERS.md#mobile-capture-and-verification)
 
 | Platform | Default profile directory |
 | --- | --- |
@@ -98,4 +100,4 @@ Set the environment variable `NO_COLOR` for plain output. Use `--no-prompt` for 
 - `--download-media` remains an alias for `--media`. Existing scan-direction and scroll timing options remain available. Check `messscrap scan --help` for the current option names and defaults.
 - The DOM dump and debug export options are retired. Use a synthetic Messenger DOM fixture when reporting parsing regressions.
 - The output now uses archive schema v2. Legacy `items` documents are accepted by the shared importer. Convert old data with `messscrap import` and regenerate HTML or ZIP from the converted JSON.
-- ZIP files from the old Windows and Python releases remain tied to those versions. Install the 2.0.0 tarball to use the shared archive viewer and exporter.
+- ZIP files from the old Windows and Python releases remain tied to those versions. Install the current 2.0 tarball to use the shared archive viewer and exporter.

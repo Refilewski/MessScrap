@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.0.1 (unreleased)
+
+### Added
+
+- Expandable capture diagnostics with a copyable local report. It includes verification status and structural counts and omits private conversation data.
+- Browser-specific installation and troubleshooting guidance for desktop, Firefox Android, Orion iOS, and Android browsers with Chromium extension support.
+- Narrow-viewport capture and panel regressions and stricter extension package checks.
+
+### Fixed
+
+- Recognize additional message pane and row structures when optional desktop markup is missing. Require evidence tying the visible history to the active conversation before capturing or exporting it.
+- Show the specific verification condition when a conversation is still loading, its route and visible history disagree, or history cannot be verified. Retry in the panel once the target thread has settled.
+- Apply the same startup verification to the packaged CLI and show the failed condition and rendered row count in the terminal.
+- Improve panel controls and scrolling on narrow screens.
+
+### Known limitations
+
+- Firefox Android and Orion iOS live capture remain experimental pending real-device verification.
+- The browser and method used in the reported mobile Chromium ZIP installation failure are unknown.
+
 ## 2.0.0 (2026-11-22)
 
 ### Added

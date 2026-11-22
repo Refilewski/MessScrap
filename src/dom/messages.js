@@ -1,9 +1,4 @@
-const [root, verifiedPane, captureInlineMedia] = arguments;
-const selector = '[data-message-id], [aria-roledescription="message"]';
-const paneSelector = '[role="log"], [role="grid"]';
-const log = root.matches(paneSelector) ? root : root.querySelector(paneSelector);
-const scope = verifiedPane || log || root;
-const rows = Array.from(scope.querySelectorAll(selector)).filter(row => !row.parentElement.closest(selector));
+const [root, pane, captureInlineMedia, rows] = arguments;
 if (!rows.length) return null;
 const inlineMedia = [];
 
@@ -35,10 +30,7 @@ function timestamp(raw) {
 }
 
 function messageLabel(raw) {
-  let match = raw.match(/^(?:At|O)\s+(.+?),\s+(?=[^\d\s])([^:]+?)(?::\s*([\s\S]*))?$/i);
-  if (!match) {
-    match = raw.match(/^(?:Enter,\s*)?Message sent\s+(.+?)\s+by\s+([^:]+?)(?::\s*([\s\S]*))?$/i);
-  }
+  const match = captureMessageLabel(raw);
   if (!match) return {author: null, sender: null, fallbackText: ''};
   const sender = flat(match[2]);
   return {
@@ -175,11 +167,11 @@ function classify(content, assets) {
   return content ? 'text' : 'unknown';
 }
 
-const bounds = root.getBoundingClientRect();
+const bounds = (root === document.scrollingElement ? pane : root).getBoundingClientRect();
 const records = [];
 
 for (const row of rows) {
-  if (row.closest('[hidden], [aria-hidden="true"]') || getComputedStyle(row).visibility === 'hidden') continue;
+  if (!pane.contains(row) || !captureRendered(row)) continue;
   const rect = row.getBoundingClientRect();
   if (!(rect.width || rect.height)) continue;
   const rawLabel = text(row.getAttribute('aria-label'));

@@ -19,9 +19,12 @@ for (const name of packages) {
 
 const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 execFileSync(python, ['-c', `
-import json, sys
+import sys
 from pathlib import Path
 from zipfile import ZipFile
+sys.path.insert(0, 'extension')
+from build import validate_extension
+
 version = sys.argv[1]
 for target in ("chromium", "firefox"):
     folder = Path("bin") / (target + "-extension")
@@ -29,15 +32,12 @@ for target in ("chromium", "firefox"):
         assert package.testzip() is None
         entries = package.namelist()
         assert len(entries) == len(set(entries))
-        manifest = json.loads(package.read("manifest.json"))
-        assert manifest["version"] == version, manifest
-        assert manifest["manifest_version"] == 3
-        assert ("browser_specific_settings" in manifest) == (target == "firefox")
-        assert {manifest["action"]["default_popup"], "content.js", "popup.js"} <= set(entries)
-        assert sorted(manifest["permissions"]) == ["activeTab", "scripting", "storage"]
-        assert not manifest.get("host_permissions"), manifest
-        for entry in entries:
-            assert package.read(entry) == (folder / entry).read_bytes(), entry
+        assert all(Path(entry).name == entry for entry in entries), entries
+        files = {entry: package.read(entry) for entry in entries}
+        validate_extension(files, target, version)
+        assert set(entries) == {path.name for path in folder.iterdir()}, folder
+        for entry, contents in files.items():
+            assert contents == (folder / entry).read_bytes(), entry
 `, version], {stdio: 'inherit'});
 for (const target of ['chromium', 'firefox']) {
   const folder = `bin/${target}-extension`;

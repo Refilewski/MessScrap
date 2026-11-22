@@ -1,6 +1,6 @@
 # Release preparation
 
-MessScrap 2.0 aligns the extension and CLI at version `2.0.0` and uses archive schema version `2`. The major release covers the new installer, command interface, and archive schema. Legacy archive import provides a migration path across the schema change.
+The extension and CLI use the same application version from `package.json`. MessScrap 2.0.1 uses archive schema version `2`. Legacy archive import provides a migration path from older versions.
 
 ## Build and verify
 
@@ -21,7 +21,7 @@ node tests/test_chromium_extension.mjs
 MESSSCRAP_FIREFOX="$(node -p "require('playwright').firefox.executablePath()")" node tests/test_firefox_extension.mjs
 ```
 
-Verify the package by installing the tarball in an empty directory and checking `messscrap --version`, `messscrap --help`, and an offline archive import and export. Confirm that the generated extension packages contain the versioned manifests and bundled scripts. Load the package in a compatible browser and verify capture with synthetic data.
+Verify the package by installing the tarball in an empty directory and checking `messscrap --version`, `messscrap --help`, and an offline archive import and export. Confirm that the generated extension packages contain the versioned manifests and bundled scripts. Load the package in a compatible browser and verify capture with synthetic data. [Browser compatibility and installation](BROWSERS.md)
 
 The workflow builds release assets from the current checkout and records SHA-256 checksums. Download the workflow artifacts for review. Release publication is a separate authorized action.
 

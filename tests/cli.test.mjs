@@ -10,6 +10,7 @@ import { createArchive, formatArchive } from '../shared/archive.mjs';
 import { buildArchiveZip, zipEntries } from '../shared/zip.mjs';
 
 const cli = fileURLToPath(new URL('../cli/messscrap.mjs', import.meta.url));
+const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const source = 'https://www.messenger.com/t/synthetic-demo';
 const time = '2026-04-23T12:00:00.000Z';
 const messages = [
@@ -43,13 +44,12 @@ async function run(args, cwd) {
 test('CLI imports and converts formats through its distributable entry point', async t => {
   const cwd = await workingDirectory(t);
   await writeFile(join(cwd, 'legacy.json'), JSON.stringify(legacy));
-  for (const [args, expected] of [
-    [['--version'], /^2\.0\.0/], [['--help'], /messscrap <command>/]
-  ]) {
-    const result = await run(args, cwd);
-    assert.equal(result.code, 0, result.stderr);
-    assert.match(result.stdout, expected);
-  }
+  const versionResult = await run(['--version'], cwd);
+  assert.equal(versionResult.code, 0, versionResult.stderr);
+  assert.equal(versionResult.stdout.trim(), version);
+  const help = await run(['--help'], cwd);
+  assert.equal(help.code, 0, help.stderr);
+  assert.match(help.stdout, /messscrap <command>/);
 
   const imported = await run(['import', 'legacy.json', '--out', 'current.json', '--json'], cwd);
   assert.equal(imported.code, 0, imported.stderr);
@@ -156,6 +156,7 @@ test('live scan checks identity at publication after a user switches conversatio
     async capture(method, options) {
       calls.push(method);
       if (method === 'inspect') return current;
+      if (method === 'start') assert.deepEqual(options.expectedIdentity, { id: active.id, generation: active.generation });
       if (method === 'state') return options?.detail ? { running: false, result: { payload: legacy } } : { running: false };
       return true;
     }
@@ -166,4 +167,22 @@ test('live scan checks identity at publication after a user switches conversatio
     await confirm();
   }), /conversation changed before export/);
   assert.equal(calls.at(-1), 'dispose');
+});
+
+test('live scan reports the startup verification failure without publishing an archive', async () => {
+  const connection = {
+    async install() {},
+    async capture(method) {
+      if (method === 'inspect') return { id: 'synthetic-demo', generation: 0, ready: false };
+      if (method === 'state') return {
+        running: false,
+        result: { error: 'Conversation verification timed out.' },
+        progress: { diagnostics: { containerFound: true, visibleRows: 3, identity: 'unverified' } }
+      };
+    }
+  };
+  const options = { signal: new AbortController().signal, captureOptions: {} };
+  await assert.rejects(captureTab(connection, { url: source }, options, () => {
+    assert.fail('An unverified conversation must not reach archive publication.');
+  }), /verification timed out\. Message list found\. 3 rendered rows\./i);
 });
