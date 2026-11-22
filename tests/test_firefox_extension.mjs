@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {mkdtemp, readFile, readdir, realpath, rm, writeFile} from 'node:fs/promises';
+import {mkdtemp, readFile, readdir, realpath, rm, stat, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -17,7 +17,7 @@ const fixture = `<!doctype html><meta charset="utf-8">
 #list { height: 1920px; position: relative; }
 article { position: absolute; height: 70px; width: min(500px, 100%); }
 </style>
-<main role="main"><div id="chat"><div role="log" id="list"></div></div></main>
+<main role="main"><header><h1>Firefox fixture</h1></header><div id="chat"><div role="log" id="list" data-thread-id="messscrap-test" data-has-more-before="false" data-has-more-after="false"></div></div></main>
 <script>
 const chat = document.querySelector('#chat');
 const list = document.querySelector('#list');
@@ -44,6 +44,9 @@ await writeFile(join(profile, 'user.js'), [
   ['browser.download.folderList', 2],
   ['browser.download.dir', profile],
   ['browser.download.useDownloadDir', true],
+  ['browser.download.alwaysOpenPanel', false],
+  ['browser.download.always_ask_before_handling_new_types', false],
+  ['browser.helperApps.neverAsk.saveToDisk', 'text/plain,application/json'],
   ['browser.shell.checkDefaultBrowser', false],
   ['network.proxy.type', 1],
   ['network.proxy.http', '127.0.0.1'],
@@ -56,7 +59,7 @@ await writeFile(join(profile, 'user.js'), [
 const firefox = spawn(executable, [
   '-headless', '-no-remote', '-profile', profile,
   '--remote-debugging-port', '0', '--remote-allow-system-access', 'about:blank',
-], {windowsHide: true});
+], {windowsHide: true, env: {...process.env, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: '1'}});
 let socket;
 const pending = new Map();
 let nextId = 0;
@@ -134,6 +137,50 @@ try {
     return result.result.value;
   }
 
+  const panel = "document.querySelector('#messscrap-export-panel').shadowRoot";
+  async function click(selector) {
+    const center = await evaluate(`(() => {
+      const node = ${panel}.querySelector(${JSON.stringify(selector)});
+      node.scrollIntoView({block: 'nearest'});
+      const rect = node.getBoundingClientRect();
+      return JSON.stringify([Math.floor(rect.left + rect.width / 2), Math.floor(rect.top + rect.height / 2)]);
+    })()`);
+    const [x, y] = JSON.parse(center);
+    await send('input.performActions', {context, actions: [{
+      type: 'pointer', id: 'mouse', parameters: {pointerType: 'mouse'},
+      actions: [{type: 'pointerMove', x, y}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}],
+    }]});
+  }
+
+  async function selectFormat(format) {
+    const keys = format === 'txt' ? ['\uE010'] : ['\uE011', '\uE015', '\uE015'];
+    await evaluate(`${panel}.querySelector('#format').focus(); true`);
+    await send('input.performActions', {context, actions: [{
+      type: 'key', id: 'keyboard', actions: keys.flatMap(value =>
+        [{type: 'keyDown', value}, {type: 'keyUp', value}]),
+    }]});
+    assert.equal(await evaluate(`${panel}.querySelector('#format').value`), format);
+    await evaluate(`${panel}.querySelector('#format').blur(); true`);
+  }
+
+  async function waitFor(expression, attempts = 200) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (await evaluate(expression)) return;
+      await delay(100);
+    }
+    throw new Error('Firefox did not reach the expected extension state: ' + expression);
+  }
+
+  async function savedFile(extension, previous = null) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const filename = (await readdir(profile)).find(name => name.startsWith('messscrap-')
+        && name.endsWith('.' + extension) && name !== previous);
+      if (filename && (await stat(join(profile, filename))).size > 0) return filename;
+      await delay(100);
+    }
+    throw new Error('No ' + extension.toUpperCase() + ' downloaded.');
+  }
+
   const {contexts: chromeContexts} = await send('browsingContext.getTree', {'moz:scope': 'chrome'});
   assert(chromeContexts.length, 'Firefox chrome context is required to invoke the add-on popup.');
   const chrome = {context: chromeContexts[0].context};
@@ -153,59 +200,41 @@ try {
     await delay(100);
   }
   assert(await evaluate("(() => { const box = document.querySelector('#messscrap-export-panel').getBoundingClientRect(); return box.width > 0 && box.left >= 0 && box.right <= innerWidth; })()"));
-  await evaluate("document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#start').click(); true");
-  let ready = false;
-  for (let attempt = 0; attempt < 200; attempt++) {
-    ready = await evaluate("!document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#save').hidden");
-    if (ready) break;
-    await delay(100);
-  }
-  assert(ready, 'JSON export did not become available.');
-  assert(await evaluate("!document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#saveTxt').hidden"));
-  await evaluate("document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#saveTxt').click(); true");
-  let savedTxt;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    savedTxt = (await readdir(profile)).find(name => /^messscrap-.*\.txt$/.test(name));
-    if (savedTxt) break;
-    await delay(100);
-  }
-  assert(savedTxt, 'No TXT downloaded.');
+  assert.equal(await evaluate(`${panel}.querySelector('#conversation').textContent`), 'Firefox fixture');
+  await click('#start');
+  await waitFor(`!${panel}.querySelector('#save').disabled`);
+  assert.equal(await evaluate(`${panel}.querySelector('#status').dataset.state`), 'completed');
+
+  await selectFormat('txt');
+  await click('#save');
+  const savedTxt = await savedFile('txt');
   const transcript = await readFile(join(profile, savedTxt), 'utf8');
-  assert.match(transcript, /Messenger conversation · 24 messages/);
+  assert.match(transcript, /Firefox fixture · 24 messages/);
   assert.match(transcript, /  • repeat/);
   assert(!transcript.includes('id-2'));
   assert(!transcript.includes('facebook.com/messages'));
 
-  await evaluate("document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#save').click(); true");
-  let saved;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    saved = (await readdir(profile)).find(name => /^messscrap-.*\.json$/.test(name));
-    if (saved) break;
-    await delay(100);
-  }
-  assert(saved, 'No JSON downloaded.');
+  await selectFormat('json');
+  assert.equal(await evaluate(`${panel}.querySelector('#save').disabled`), false, 'A TXT download preserves the verified scan for another format.');
+  await click('#save');
+  const saved = await savedFile('json');
   const data = JSON.parse(await readFile(join(profile, saved), 'utf8'));
-  assert.deepEqual(data.items.map(item => item.source_message_id), Array.from({length: 24}, (_, i) => 'id-' + i));
-  assert.equal(data.items[4].reply_to.target_message_id, 'local-3');
-  assert.equal(data.items[5].attachments[0].url_scheme, 'data');
-  assert.equal(data.partial, false);
+  assert.equal(data.schemaVersion, 2);
+  assert.equal(data.conversation.id, 'messscrap-test');
+  assert.deepEqual(data.messages.map(item => item.nativeId), Array.from({length: 24}, (_, i) => 'id-' + i));
+  assert.equal(data.messages[4].reply.messageId, data.messages[2].id);
+  assert.equal(data.messages[5].attachments[0].kind, 'image');
+  assert.equal(data.scan.status, 'completed');
 
-  await evaluate("(() => { const panel = document.querySelector('#messscrap-export-panel').shadowRoot; panel.querySelector('#start').click(); panel.querySelector('#stop').click(); return true; })()");
-  for (let attempt = 0; attempt < 20; attempt++) {
-    if (await evaluate("!document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#save').hidden")) break;
-    await delay(100);
-  }
-  await evaluate("document.querySelector('#messscrap-export-panel').shadowRoot.querySelector('#save').click(); true");
-  let partial;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    partial = (await readdir(profile)).find(name => /^messscrap-.*\.json$/.test(name) && name !== saved);
-    if (partial) break;
-    await delay(100);
-  }
-  assert(partial, 'No partial JSON downloaded.');
+  await click('#start');
+  await waitFor(`Number(${panel}.querySelector('#count').textContent) > 0`, 40);
+  await click('#stop');
+  await waitFor(`!${panel}.querySelector('#save').disabled`, 40);
+  await click('#save');
+  const partial = await savedFile('json', saved);
   const partialData = JSON.parse(await readFile(join(profile, partial), 'utf8'));
-  assert.equal(partialData.interrupted, true);
-  assert(partialData.count > 0 && partialData.count < 24);
+  assert.equal(partialData.scan.status, 'cancelled');
+  assert(partialData.messages.length > 0 && partialData.messages.length < 24);
   console.log('Firefox ' + session.capabilities.browserVersion + ': installed extension, exported 24 messages and checked TXT and partial JSON.');
 } finally {
   socket?.close();

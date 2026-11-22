@@ -1,0 +1,37 @@
+{
+  "name": "messscrap",
+  "version": "2.0.0",
+  "description": "Local-first Messenger conversation archiving and offline viewing",
+  "type": "module",
+  "bin": {
+    "messscrap": "cli/messscrap.mjs"
+  },
+  "engines": {
+    "node": ">=22.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Refilewski/MessScrap.git"
+  },
+  "files": [
+    "cli/",
+    "shared/",
+    "docs/CLI.md",
+    "docs/ARCHITECTURE.md",
+    "extension/thread.js",
+    "extension/collect.js",
+    "src/dom/container.js",
+    "src/dom/messages.js",
+    "src/dom/scroll.js",
+    "src/dom/capture.js"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build:extension": "python3 extension/build.py",
+    "pack:cli": "node cli/pack.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "playwright": "^1.65.1"
+  }
+}
